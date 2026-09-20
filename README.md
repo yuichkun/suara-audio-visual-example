@@ -1,109 +1,148 @@
-# SuaraVisual — Audio Visual Starter for Suara
+# suara-audio-visual-example
 
-VJ総会向けのスターターです。DAW（Cubase 等）の **transport / parameters / MIDI / audio** を Shadertoy 風の GLSL uniforms に載せ、WebGL2 の fullscreen fragment で描画します。
+Suara で audio visual を作るための repo。VJ 合宿のレクチャー用。
 
-同じコードがブラウザでも VST プラグイン内でも動きます（Suara）。
+成果物は 2 つ:
 
-## Quick start
+1. **demo** — この repo の root 自体が Suara plugin project (`SuaraVisual`)。DAW の MIDI / automation / sidechain / transport を全部絵に使う。**表現も UI もまだ何も置いていない** (今あるのは土台だけで、開いても画面は黒いまま)
+2. **scaffold CLI** — 同じ土台を持った新しい AV plugin project を作る (`npm run create`)。Suara 本体の CLI とは別物
+
+同じコードがブラウザでも VST plugin の中でも動く。
+
+## 動かす
 
 ```bash
 npm install
-npm run dev          # http://localhost:5173 — ブラウザでシェーダーを書く
 ```
 
-DAW で使う場合（Suara CLI が使えるマシン）:
+```bash
+npm run dev
+```
+
+http://localhost:5173 を開く。ブラウザでは DAW の入力を SDK が仮想化する。
+**ブラウザでは音は出ない** (出力は default で mute。`graph.setMonitor(true)` で鳴る)。
+
+DAW で開く (Suara CLI が使えるマシン):
 
 ```bash
 suara build dev
+```
+
+```bash
 suara register dev
-# Cubase で SuaraVisual (dev) をインサート → Vite が起動していれば HMR
 ```
 
-## 触る場所
+`npm run dev` を起動したまま DAW で **SuaraVisual (dev)** をインサートする。shader を保存すると DAW を開いたまま反映される。
 
-| ファイル | 役割 |
-|---|---|
-| [`src/shaders/*.frag`](src/shaders/) | GLSL fragment（`mainImage` を書く） |
-| [`src/uniforms/derive.ts`](src/uniforms/derive.ts) | CPU 側で uniform を加工する拡張点 |
-| [`suara.json`](suara.json) | Scene / Intensity / Hue / Speed / AudioAmount の automation 定義 |
+## 構成
 
-SPA フレームワークは使いません。Vue 依存もありません（SDK はファイルコピーして `reactive` を剥がしています）。
-
-## Shadertoy 風 uniforms
-
-kit が fullscreen triangle の vertex と `void main()` ラッパを付けます。fragment では次が使えます:
-
-| Uniform | 意味 |
-|---|---|
-| `iResolution` | canvas サイズ (px) |
-| `iTime` / `iDelta` | 秒 / フレーム差分 |
-| `iBeat` / `iBar` / `iTempo` / `iPlaying` | 拍・小節・BPM・再生中 |
-| `iRms` / `iPeak` / `iHit` | 音量・ピーク・短い onset |
-| `iNoteCount` / `iLastNote` / `iLastVel` | MIDI |
-| `iScene` / `iP0`…`iP3` | Scene とマクロ（Intensity / Hue / Speed / AudioAmount） |
-| `iSpectrum` | FFT テクスチャ (`sampler2D`) |
-
-例:
-
-```glsl
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-  vec2 uv = fragCoord / iResolution.xy;
-  float wave = 0.5 + 0.5 * sin(uv.x * 10.0 + iTime * 2.0 + iRms * 5.0);
-  fragColor = vec4(vec3(wave), 1.0);
-}
+```
+suara.json              plugin の定義 (param / bus)。param の id・default はここが SSoT
+src/
+  main.ts               配線: SDK → signals → renderer
+  params.ts             automation param の宣言 (suara.json を title で引く)
+  uniforms.ts           shader から見える uniform の表 (標準 + param + 自前)
+  scenes.ts             shaders/*.frag を Scene 0, 1, 2... にする
+  shaders/*.frag        shader
+  worklets/             DSP (default は素通し)
+  kit/                  ← demo と scaffold で共有する土台
+    signals/            DAW の入力 → 絵に使いやすい値。renderer 非依存・ほぼ純関数
+      transport.ts        beat / bar / phase、テンポ同期の pulse・trigger
+      midi.ts             note ごとの envelope、last note、noteAge
+      audio.ts            level / 帯域 / onset / spectrum / waveform (main と sidechain 共用)
+      params.ts           suara.json SSoT の param 宣言
+      envelope.ts         fps に依存しない平滑化 (follower / onset)
+      frame.ts            上を全部まとめて 1 フレームぶんの Frame にする
+    audio-graph.ts      main bus の passthrough + main / sidechain の AnalyserNode
+    glsl/               WebGL2 fullscreen renderer、標準 uniform、scene 選択
+  sdk/                  Suara SDK (vendoring 済み、触らない)
+templates/glsl/         scaffold される project の固有ファイル
+cli/create.ts           scaffold CLI
 ```
 
-新しいシーンを足す: `src/shaders/sceneN.frag` を追加し、[`src/scenes/index.ts`](src/scenes/index.ts) に import する。DAW の **Scene** パラメータでタイムライン切替できます。
+`kit/signals` は GLSL を知らない。three.js や p5 で描きたくなったら `createSignals()` の `Frame` をそのまま使える。
 
-## ブラウザ HUD
+## Suara の機能 → どこで受けているか
 
-web runtime では画面下に Play / BPM / ファイル入力 / 簡易鍵盤が出ます。`positionSamples` は **VST 専用**なので、ブラウザでは合成時計で `iTime` が進みます。
+| DAW の機能 | SDK | kit | shader |
+|---|---|---|---|
+| MIDI | `useMidi()` | `signals/midi.ts` | `iNotes` `iLastNote` `iNoteAge` ... |
+| automation (読み / 書き) | `useParam()` | `signals/params.ts` | `pIntensity` ... |
+| audio (トラックの音) | `createDawInput({ bus: 'main' })` | `audio-graph.ts` + `signals/audio.ts` | `iLevel` `iSpectrum` ... |
+| sidechain | `createDawInput({ bus: 'sidechain' })` | 同上 | `iScLevel` `iScOnset` ... |
+| transport / BPM | `useTransport()` | `signals/transport.ts` | `iBeat` `iBeatPhase` `iPlaying` ... |
 
-## 制約（正直に）
+param は `begin → setFromUser → end` を呼ぶと、VST では DAW に automation として録音される (画面側の操作 UI はまだ無い)。
 
-- MIDI は note on/off + velocity のみ（CC なし）
-- GPU への反映は rAF（sample-accurate な入力を rAF で uniform 化する）
-- 音は passthrough。DSP を足すなら `src/worklets/dsp-worklet.ts`
+## shader で使える uniform
+
+`void mainImage(out vec4 fragColor, in vec2 fragCoord)` を書くだけ (Shadertoy と同じ)。
+一覧の正は [`src/kit/glsl/standard-uniforms.ts`](src/kit/glsl/standard-uniforms.ts)。
+
+| 種類 | uniform |
+|---|---|
+| 画面 / 時間 | `iResolution` `iTime` `iTimeDelta` `iFrame` |
+| transport | `iSongTime` `iBeat` `iBar` `iBeatPhase` `iBarPhase` `iTempo` `iPlaying` |
+| audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iSpectrum` `iWaveform` |
+| audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScSpectrum` |
+| MIDI | `iNoteCount` `iLastNote` `iLastVelocity` `iNoteAge` `iMidiLevel` `iNotes` |
+| param | `pScene` `pIntensity` `pHue` `pSpeed` `pAudioAmount` |
+
+- `iTime` は常に進む。`iSongTime` / `iBeat` は DAW の再生位置に追従して、止めると止まる
+- `iSpectrum` `iWaveform` `iScSpectrum` `iNotes` は 1 行の texture。`texture(iSpectrum, vec2(x, 0.5)).r`、
+  note は `texelFetch(iNotes, ivec2(note, 0), 0).r`
+
+### 足し方
+
+- **scene**: `src/shaders/` に `.frag` を置く (ファイル名順)。Scene param の範囲は 0..15 固定なので、後から足しても DAW に書いた automation の意味は変わらない
+- **param**: `suara.json` の `parameters` に 1 件足す → `src/params.ts` に 1 行足す → shader で `p<Key>`。title がズレていたら起動時に throw する
+- **uniform**: `src/uniforms.ts` の表に 1 行足す。GLSL の宣言と毎フレームの upload は表から生成される
+
+## scaffold CLI
+
+```bash
+npm run create -- MyVJ --vendor YourName
+```
+
+`templates/glsl/` (project 固有) + root の `src/kit` `src/sdk` `src/worklets` 等 (共有の土台) を合わせて `./MyVJ` を作り、uuid を振り直す。
+kit を直せば、以後 scaffold される project にもそのまま入る。`--out <dir>` で出力先を変えられる。
 
 ## テスト
 
 ```bash
-npm run typecheck  # 厳格な tsc（noUncheckedIndexedAccess / exactOptionalPropertyTypes 等）
-npm test           # vitest — clock / MIDI / spectrum / SDK web 経路
-npm test:e2e       # Playwright — WebGL probe + 画面スモーク
+npm run typecheck
 ```
+
+```bash
+npm test
+```
+
+```bash
+npm run test:e2e
+```
+
+- `npm test` (vitest): signals の純ロジック / SDK の web 経路 / CLI (scaffold した project が typecheck を通るところまで)
+- `npm run test:e2e` (Playwright): uniform 表の値が GPU に届く / 全 shader がコンパイルできる / 画面スモーク
 
 ## Cubase 実機チェックリスト
 
-- [ ] `suara build dev && suara register dev` 後、プラグイン一覧に **SuaraVisual (dev)** が出る
-- [ ] Vite (`npm run dev`) 起動中にウィンドウが開き、絵が出る
-- [ ] 再生すると `iTime` / ビート反応が進む（Scene0 の波が動く）
-- [ ] Scene パラメータを automation で 0→1→2 と書くとシーンが切り替わる
-- [ ] MIDI ノートを送ると Scene2 の円が反応する
-- [ ] トラックの音がプラグインを通過して聞こえる（passthrough）
-- [ ] Intensity / Hue を動かすと見た目が変わる
+bus 構成 (sidechain) を変えたので、`suara build dev` → `suara register dev` のやり直しと plugin の再スキャンが要るかもしれない。
 
-## 新しいプロジェクトを scaffold（このリポの CLI）
+- [ ] プラグイン一覧に **SuaraVisual (dev)** が出て、エラーなしで開く
+- [ ] トラックの音が plugin を通過して聞こえる (passthrough)
 
-Suara 本体の CLI には足していません。このリポ専用です:
+MIDI / sidechain / transport / automation が実機で届いているかは、画面に出すものを決めてから確認する。
 
-```bash
-npm run create -- MyVJ
-# または
-node --experimental-strip-types cli/create.ts MyVJ --renderer glsl --vendor YourName
-```
+## 制約
 
-`--bind time,audio,midi,beat,params` でデフォルトで載せる uniform 群を選べます（現状 `time` のみの簡略デモあり。他 renderer は後日）。
+- MIDI は note on/off + velocity のみ (CC / pitch bend は SDK に来ない)
+- `iBeat` は「再生位置 × テンポ」から自前で積んでいる (SDK に PPQ 位置が無い)。再生中のテンポ変化には追従するが、テンポチェンジのある曲を途中から再生すると DAW の拍とズレる。拍子チェンジも未対応
+- 値の更新は画面のフレーム単位 (sample accurate ではない)
 
 ## SDK の再 vendor
 
 ```bash
 npm run vendor:sdk
-# または SUARA_SDK_SRC=/path/to/poc_v2/sdk/src npm run vendor:sdk
 ```
 
-## GLSL メモ（Shadertoy から）
-
-- `#version 300 es` は kit が付ける — 自分で書かない
-- `texture()` を使う（`texture2D` は ES3 では古い）
-- `fragCoord` は `gl_FragCoord.xy` 相当（ラッパが渡す）
+`../suara/poc_v2/sdk/src` (または `SUARA_SDK_SRC`) から `src/sdk/` を作り直す。Vue 依存を外す patch が upstream の変更で当たらなくなったら、黙って通さずに失敗する。
