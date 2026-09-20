@@ -19,6 +19,10 @@ export const standardUniforms: readonly UniformSpec<Frame>[] = [
   { name: 'iTempo', type: 'float', get: (f) => f.transport.tempo },
   { name: 'iPlaying', type: 'float', get: (f) => (f.transport.playing ? 1 : 0) },
 
+  // --- motion (「いま動くべきか」。default は transport が再生中) ---
+  { name: 'iMotion', type: 'float', get: (f) => f.motion.amount },
+  { name: 'iMotionTime', type: 'float', get: (f) => f.motion.time },
+
   // --- audio: main bus ---
   { name: 'iLevel', type: 'float', get: (f) => f.audio.level },
   { name: 'iRms', type: 'float', get: (f) => f.audio.rms },

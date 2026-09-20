@@ -6,6 +6,7 @@ import type { AudioGraph } from '../audio-graph';
 import { createAudioAnalysis, type AudioAnalysisOptions, type AudioFrame } from './audio';
 import type { FollowerOptions } from './envelope';
 import { createMidiSignal, type MidiFrame } from './midi';
+import { createMotion, type MotionFrame } from './motion';
 import { readParams, type BoundParam } from './params';
 import { createBeatTracker, createPlayhead, type Playhead, type TransportFrame } from './transport';
 
@@ -22,6 +23,8 @@ export interface Frame<P extends string = string> {
   /** sidechain bus。 */
   sidechain: AudioFrame;
   midi: MidiFrame;
+  /** 「いま動くべきか」のスイッチ。default では transport が再生中かどうか。 */
+  motion: MotionFrame;
   /** automation param の現在値 (denormalized)。 */
   params: Record<P, number>;
 }
@@ -34,6 +37,10 @@ export interface SignalsOptions<P extends string> {
   audio?: Partial<AudioAnalysisOptions>;
   sidechain?: Partial<AudioAnalysisOptions>;
   midiEnvelope?: Partial<FollowerOptions>;
+  /** motion の on 条件。default は transport が再生中。 */
+  isMoving?: (frame: Frame<P>) => boolean;
+  /** motion.amount が立ち上がる / 下がる時定数 (秒)。 */
+  motionEase?: Partial<FollowerOptions>;
 }
 
 export interface Signals<P extends string> {
@@ -51,6 +58,8 @@ export function createSignals<P extends string>(opts: SignalsOptions<P>): Signal
   const audio = createAudioAnalysis(opts.graph.main, opts.audio);
   const sidechain = createAudioAnalysis(opts.graph.sidechain, opts.sidechain);
   const midi = createMidiSignal(opts.midi, opts.midiEnvelope);
+  const motion = createMotion(opts.motionEase);
+  const isMoving = opts.isMoving ?? ((f: Frame<P>) => f.transport.playing);
 
   let lastMs: number | null = null;
   const frame: Frame<P> = {
@@ -61,6 +70,7 @@ export function createSignals<P extends string>(opts: SignalsOptions<P>): Signal
     audio: audio.update(0),
     sidechain: sidechain.update(0),
     midi: midi.update(0),
+    motion: motion.update(false, 0),
     params: readParams(opts.params),
   };
 
@@ -77,6 +87,7 @@ export function createSignals<P extends string>(opts: SignalsOptions<P>): Signal
       frame.sidechain = sidechain.update(dt);
       frame.midi = midi.update(dt);
       readParams(opts.params, frame.params);
+      frame.motion = motion.update(isMoving(frame), dt);
       return frame;
     },
   };

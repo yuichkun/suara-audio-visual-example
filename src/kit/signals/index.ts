@@ -13,6 +13,9 @@ export type { MidiFrame, MidiSignal } from './midi';
 export { analyseTimeDomain, bandAverage, createAudioAnalysis } from './audio';
 export type { AnalyserLike, AudioAnalysis, AudioAnalysisOptions, AudioFrame } from './audio';
 
+export { createMotion } from './motion';
+export type { Motion, MotionFrame } from './motion';
+
 export { defineParams, readParams } from './params';
 export type { BoundParam, ManifestParam, ParamSpec } from './params';
 

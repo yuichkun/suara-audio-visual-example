@@ -51,6 +51,7 @@ src/
       midi.ts             note ごとの envelope、last note、noteAge
       audio.ts            level / 帯域 / onset / spectrum / waveform (main と sidechain 共用)
       params.ts           suara.json SSoT の param 宣言
+      motion.ts           「いま動くべきか」の汎用スイッチ (default: transport が再生中)
       envelope.ts         fps に依存しない平滑化 (follower / onset)
       frame.ts            上を全部まとめて 1 フレームぶんの Frame にする
     audio-graph.ts      main bus の passthrough + main / sidechain の AnalyserNode
@@ -83,12 +84,15 @@ param は `begin → setFromUser → end` を呼ぶと、VST では DAW に auto
 |---|---|
 | 画面 / 時間 | `iResolution` `iTime` `iTimeDelta` `iFrame` |
 | transport | `iSongTime` `iBeat` `iBar` `iBeatPhase` `iBarPhase` `iTempo` `iPlaying` |
+| motion | `iMotion` `iMotionTime` |
 | audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iSpectrum` `iWaveform` |
 | audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScSpectrum` |
 | MIDI | `iNoteCount` `iLastNote` `iLastVelocity` `iNoteAge` `iMidiLevel` `iNotes` |
 | param | `pScene` `pIntensity` `pHue` `pSpeed` `pAudioAmount` |
 
 - `iTime` は常に進む。`iSongTime` / `iBeat` は DAW の再生位置に追従して、止めると止まる
+- `iMotion` は「いま動くべきか」に滑らかに追従する 0..1 (default では再生中 = 1)。形や強さの補間に使う。
+  `iMotionTime` は `iMotion` で重みづけして進む秒で、止めると減速して止まり、再開すると続きから進む。回転など動きの位相に使う
 - `iSpectrum` `iWaveform` `iScSpectrum` `iNotes` は 1 行の texture。`texture(iSpectrum, vec2(x, 0.5)).r`、
   note は `texelFetch(iNotes, ivec2(note, 0), 0).r`
 
