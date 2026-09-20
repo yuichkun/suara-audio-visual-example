@@ -1,7 +1,7 @@
 // e2e (Playwright) 用: renderer を素の状態で叩く窓口。plugin 本体には含まれない。
 import { createGlslRenderer, type CompileResult, type UniformSpec } from './kit/glsl/renderer';
 import { standardUniforms } from './kit/glsl/standard-uniforms';
-import { SCENES } from './scenes';
+import { SCENE } from './scenes';
 import { tuning } from './tuning';
 import { uniforms } from './uniforms';
 import probeSrc from '../tests/e2e/probe.frag?raw';
@@ -33,7 +33,7 @@ const api: HarnessApi = {
       constants: tuning.shader,
     });
     if (!r) throw new Error('no webgl2');
-    return SCENES.map((s) => ({ name: s.name, ...r.compileOnly(s.source) }));
+    return [SCENE].map((s) => ({ name: s.name, ...r.compileOnly(s.source) }));
   },
   compileSource(src) {
     const r = createGlslRenderer(document.createElement('canvas'), standardUniforms);

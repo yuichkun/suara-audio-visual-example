@@ -43,7 +43,7 @@ src/
   params.ts             automation param の宣言 (suara.json を title で引く)
   uniforms.ts           shader から見える uniform の表 (標準 + param + 自前)
   app-frame.ts          この作品固有の毎フレームの値 (脈打ち / 形の重み / 低音) を Frame に足す
-  scenes.ts             shaders/*.frag を Scene 0, 1, 2... にする
+  scenes.ts             この作品の shader (main.frag 1 本)
   tuning.ts             手で調整する値は全部ここ (色・速さ・大きさ・カメラ ...)。shader には const として埋め込まれる
   shaders/*.frag        shader
   worklets/             DSP (default は素通し)
@@ -70,7 +70,7 @@ cli/create.ts           scaffold CLI
 | DAW の機能 | SDK | kit | shader |
 |---|---|---|---|
 | MIDI | `useMidi()` | `signals/midi.ts` | `iNotes` `iLastNote` `iNoteAge` ... |
-| automation (読み / 書き) | `useParam()` | `signals/params.ts` | `pIntensity` ... |
+| automation (読み / 書き) | `useParam()` | `signals/params.ts` | `pShape` `pEnergy` |
 | audio (トラックの音) | `createDawInput({ bus: 'main' })` | `audio-graph.ts` + `signals/audio.ts` | `iLevel` `iSpectrum` ... |
 | sidechain | `createDawInput({ bus: 'sidechain' })` | 同上 | `iScLevel` `iScOnset` ... |
 | transport / BPM | `useTransport()` | `signals/transport.ts` | `iBeat` `iBeatPhase` `iPlaying` ... |
@@ -90,8 +90,8 @@ param は `begin → setFromUser → end` を呼ぶと、VST では DAW に auto
 | audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iSpectrum` `iWaveform` |
 | audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScSpectrum` |
 | MIDI | `iNoteCount` `iLastNote` `iLastVelocity` `iNoteAge` `iMidiLevel` `iNotes` |
-| param | `pScene` `pIntensity` `pHue` `pSpeed` `pAudioAmount` `pShape` |
-| この作品固有 | `iPulse` (4 つ打ちの脈打ち) `iShapeWeights` (再生中の形 3 つの重み) `iBass` `iBassHitAge` `iBassHit` `iHallAngle` (sidechain の低音) |
+| param | `pShape` (再生中の形 0..2) `pEnergy` (クライマックスのノブ 0..1) |
+| この作品固有 | `iPulse` (4 つ打ちの脈打ち) `iShapeWeights` (再生中の形 3 つの重み) `iBass` `iBassHitAge` `iBassHit` `iHallAngle` (sidechain の低音) `iEnergy` `iDriveTime` `iSwarmTime` `iOrbitAngle` (Energy) |
 
 - `iTime` は常に進む。`iSongTime` / `iBeat` は DAW の再生位置に追従して、止めると止まる
 - `iMotion` は「いま動くべきか」に滑らかに追従する 0..1 (default では再生中 = 1)。形や強さの補間に使う。
@@ -101,7 +101,7 @@ param は `begin → setFromUser → end` を呼ぶと、VST では DAW に auto
 
 ### 足し方
 
-- **scene**: `src/shaders/` に `.frag` を置く (ファイル名順)。Scene param の範囲は 0..15 固定なので、後から足しても DAW に書いた automation の意味は変わらない
+- **shader**: この作品は `src/shaders/main.frag` 1 本。複数の shader を automation で切り替えたい時は kit の `glsl/scenes.ts` (scaffold した project はこれを使う)
 - **param**: `suara.json` の `parameters` に 1 件足す → `src/params.ts` に 1 行足す → shader で `p<Key>`。title がズレていたら起動時に throw する
 - **uniform**: `src/uniforms.ts` の表に 1 行足す。GLSL の宣言と毎フレームの upload は表から生成される
 

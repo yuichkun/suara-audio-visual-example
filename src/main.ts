@@ -1,11 +1,11 @@
 import { useMidi, useTransport } from '@suara/sdk';
 import { createAudioGraph } from './kit/audio-graph';
 import { createGlslRenderer } from './kit/glsl/renderer';
-import { sceneForValue, type Scene } from './kit/glsl/scenes';
+import type { Scene } from './kit/glsl/scenes';
 import { createAppFrame } from './app-frame';
 import { createSignals } from './kit/signals';
 import { params } from './params';
-import { SCENES } from './scenes';
+import { SCENE } from './scenes';
 import { tuning } from './tuning';
 import { uniforms } from './uniforms';
 import dspUrl from './worklets/dsp-worklet.ts?worker&url';
@@ -32,10 +32,10 @@ async function main(): Promise<void> {
   if (!renderer) return;
 
   let tune = tuning;
-  let scenes = SCENES;
+  let scene = SCENE;
   let current: Scene | null = null;
-  const showScene = (scene: Scene | null): void => {
-    if (!scene || scene === current) return;
+  const compileIfChanged = (): void => {
+    if (scene === current) return;
     current = scene;
     renderer.setFragment(scene.source);
   };
@@ -49,14 +49,14 @@ async function main(): Promise<void> {
     });
     import.meta.hot.accept('./scenes', (mod) => {
       if (!mod) return;
-      scenes = mod['SCENES'] as readonly Scene[];
+      scene = mod['SCENE'] as Scene;
       current = null;
     });
   }
 
   const loop = (nowMs: number): void => {
     const frame = appFrame.extend(signals.update(nowMs), tune);
-    showScene(sceneForValue(scenes, frame.params.scene));
+    compileIfChanged();
     renderer.draw(frame);
     requestAnimationFrame(loop);
   };

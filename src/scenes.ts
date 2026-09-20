@@ -1,6 +1,6 @@
-// src/shaders/*.frag がファイル名順に Scene 0, 1, 2... になる (置くだけで増える)。
-import { scenesFromGlob, type Scene } from './kit/glsl/scenes';
+// この作品の shader。(kit には Scene param で複数の shader を切り替える仕組みもあるが、
+// この作品は 1 本だけなので使っていない)
+import source from './shaders/main.frag?raw';
+import type { Scene } from './kit/glsl/scenes';
 
-export const SCENES: readonly Scene[] = scenesFromGlob(
-  import.meta.glob<string>('./shaders/*.frag', { query: '?raw', import: 'default', eager: true }),
-);
+export const SCENE: Scene = { name: 'main', source };

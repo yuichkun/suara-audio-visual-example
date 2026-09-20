@@ -10,11 +10,6 @@
   "processorUuid": "BDE53452E768424AB229CA2D4A0581DD",
   "controllerUuid": "6B312E446E8F41E7991CD59C48365984",
   "parameters": [
-    { "id": 0, "title": "Scene", "default": 0.0, "flags": ["automatable"] },
-    { "id": 1, "title": "Intensity", "default": 0.5, "flags": ["automatable"] },
-    { "id": 2, "title": "Hue", "default": 0.5, "flags": ["automatable"] },
-    { "id": 3, "title": "Speed", "default": 0.5, "flags": ["automatable"] },
-    { "id": 4, "title": "AudioAmount", "default": 1.0, "flags": ["automatable"] },
     { "id": 5, "title": "Shape", "default": 0.0, "flags": ["automatable"] },
     { "id": 6, "title": "Energy", "default": 0.0, "flags": ["automatable"] }
   ],
