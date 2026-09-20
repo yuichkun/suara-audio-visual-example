@@ -17,7 +17,10 @@
     { "id": 4, "title": "AudioAmount", "default": 1.0, "flags": ["automatable"] }
   ],
   "buses": {
-    "audioInputs": [{ "name": "Stereo In", "arrangement": "stereo", "busType": "main" }],
+    "audioInputs": [
+      { "name": "Stereo In", "arrangement": "stereo", "busType": "main" },
+      { "name": "Sidechain In", "arrangement": "stereo", "busType": "aux", "defaultActive": false }
+    ],
     "audioOutputs": [{ "name": "Stereo Out", "arrangement": "stereo" }],
     "eventInputs": [{ "name": "Event In", "channels": 1 }]
   }
