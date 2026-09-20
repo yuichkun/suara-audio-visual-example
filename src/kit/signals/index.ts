@@ -13,6 +13,9 @@ export type { MidiFrame, MidiSignal } from './midi';
 export { analyseTimeDomain, bandAverage, createAudioAnalysis } from './audio';
 export type { AnalyserLike, AudioAnalysis, AudioAnalysisOptions, AudioFrame } from './audio';
 
+export { createBlendWeights } from './blend';
+export type { BlendWeights } from './blend';
+
 export { createMotion } from './motion';
 export type { Motion, MotionFrame } from './motion';
 
