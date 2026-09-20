@@ -12,4 +12,5 @@ export const uniforms: readonly UniformSpec<AppFrame>[] = [
   { name: 'iBass', type: 'float', get: (f) => f.bass },
   { name: 'iBassHitAge', type: 'float', get: (f) => f.bassHitAge },
   { name: 'iBassHit', type: 'float', get: (f) => f.bassHit },
+  { name: 'iHallAngle', type: 'float', get: (f) => f.hallAngle },
 ];

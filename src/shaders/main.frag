@@ -1,7 +1,9 @@
 // 白い未来的な空間の中心に、SDF のオブジェクトが 1 つ浮いている。
 //
 //   空間   : 巨大な白いドーム (rib と天井の光パネル)。床は光沢のある白で、地平に向かって霞む
-//            sidechain の低音に反応するのは空間の側: 低音が立ち上がるたびに床に波紋が走る
+//            sidechain の低音に反応するのは空間の側 (色ではなく形と動きで):
+//              - 低音が立ち上がるたびに床に波紋が走り、その波で床の面が傾いて映り込みが波打つ
+//              - 低音が鳴っている間、ホール (壁とドーム) がオブジェクトのまわりを回る
 //   object : 白いセラミックの殻 + 黒い核 + 発光する輪。iMotion (= 再生中かどうか) で姿が変わる
 //            停止中: 閉じた卵。パッドのすぐ上で直立して静止し、合わせ目から光が呼吸するように漏れる
 //            再生中: 浮き上がって開き、傾いた軸でゆっくり回る。形は iShapeWeights で 3 つの間を morph する
@@ -229,7 +231,9 @@ vec3 env(vec3 rd) {
     return mix(HORIZON, vec3(0.78, 0.8, 0.83), smoothstep(0.0, -0.7, rd.y));
   }
   float el = asin(clamp(rd.y, 0.0, 1.0));
-  float az = atan(rd.z, rd.x);
+  // 低音でホールが回る。壁は順方向、ドームはゆっくり逆方向 (= 巨大な機構が噛み合って動く感じ)
+  float az0 = atan(rd.z, rd.x);
+  float az = az0 + iHallAngle;
 
   // 遠くの壁: 縦長の光のスリットが並ぶ円形ホール。足元は霞んで床に溶ける
   if (el < WALL_TOP) {
@@ -248,7 +252,7 @@ vec3 env(vec3 rd) {
   vec3 col = mix(HORIZON * 0.97, ZENITH, smoothstep(WALL_TOP, 1.3, el));
 
   // rib (経線) と ring (緯線)。地平に近いほど霞んで消える
-  float u = az / TAU * DOME_RIBS;
+  float u = (az0 - 0.6 * iHallAngle) / TAU * DOME_RIBS;
   float v = el / radians(9.0);
   float du = abs(fract(u) - 0.5);
   float dv = abs(fract(v) - 0.5);
@@ -342,9 +346,16 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   float wave = aaLine(rr - waveR, 0.015, fr) + 0.3 * smoothstep(0.7, 0.0, abs(rr - waveR));
   col = mix(col, ACCENT * 0.9, clamp(wave, 0.0, 1.0) * gBassWave * BASS_WAVE * exp(-0.03 * t));
 
+  // 低音の波: 波紋の位置で床の面がわずかに傾く (= 波が通る所で映り込みと光の当たり方が波打つ)
+  float wx = rr - waveR;
+  float slope = BASS_WAVE_BEND * gBassWave * exp(-wx * wx * 3.0) * sin(wx * 7.0) * exp(-0.03 * t);
+  vec2 outward = (pos.xz - c.xz) / max(rr, 0.001);
+  col *= 1.0 - 1.6 * slope * dot(outward, normalize(KEY_DIR.xz));
+
   // 光沢: object と空間が映り込む
-  vec3 n = vec3(0.0, 1.0, 0.0);
+  vec3 n = normalize(vec3(-slope * outward.x, 1.0, -slope * outward.y));
   vec3 r = reflect(rd, n);
+  r.y = abs(r.y);
   float glow;
   vec2 hit = marchObject(pos + n * 0.002, r, glow);
   vec3 refl = hit.x > 0.0 ? shadeObject(pos + r * hit.x, r, hit.y) : env(r);

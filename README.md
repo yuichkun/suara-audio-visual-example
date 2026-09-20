@@ -91,7 +91,7 @@ param は `begin → setFromUser → end` を呼ぶと、VST では DAW に auto
 | audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScSpectrum` |
 | MIDI | `iNoteCount` `iLastNote` `iLastVelocity` `iNoteAge` `iMidiLevel` `iNotes` |
 | param | `pScene` `pIntensity` `pHue` `pSpeed` `pAudioAmount` `pShape` |
-| この作品固有 | `iPulse` (4 つ打ちの脈打ち) `iShapeWeights` (再生中の形 3 つの重み) `iBass` `iBassHitAge` `iBassHit` (sidechain の低音) |
+| この作品固有 | `iPulse` (4 つ打ちの脈打ち) `iShapeWeights` (再生中の形 3 つの重み) `iBass` `iBassHitAge` `iBassHit` `iHallAngle` (sidechain の低音) |
 
 - `iTime` は常に進む。`iSongTime` / `iBeat` は DAW の再生位置に追従して、止めると止まる
 - `iMotion` は「いま動くべきか」に滑らかに追従する 0..1 (default では再生中 = 1)。形や強さの補間に使う。
