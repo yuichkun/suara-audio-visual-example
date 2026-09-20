@@ -6,7 +6,7 @@
 
 export type UniformSpec<F> =
   | { name: string; type: 'float'; get(frame: F): number }
-  | { name: string; type: 'vec2' | 'vec3' | 'vec4'; get(frame: F): readonly number[] }
+  | { name: string; type: 'vec2' | 'vec3' | 'vec4'; get(frame: F): ArrayLike<number> }
   /** 1 行 × N 列の float texture (R16F)。shader では texture() / texelFetch() で読む。 */
   | { name: string; type: 'texture'; get(frame: F): Float32Array };
 
