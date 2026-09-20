@@ -4,10 +4,10 @@
 //             number = float、[r, g, b] = vec3。保存すると reload なしで反映される
 //   motion / pulse → TS 側で使う値。反映には reload が要る
 
-/** 脈打ちの「門」を何で開けるか。
- *   sidechain: sidechain bus の音の立ち上がり (キックのトラックを Side-Chain に送る)
- *   main     : main bus の低域の立ち上がり (mix の中からキックを拾う)
- *   always   : 門なし。再生中は常に拍で脈打つ */
+/** 脈打ちを「出す / 出さない」を何で決めるか。脈の位置そのものは常に transport の拍。
+ *   always   : transport だけ。再生中は常に拍で脈打つ (音は一切見ない)
+ *   sidechain: sidechain bus にキックが届いている間だけ出す
+ *   main     : main bus の低域にキックが鳴っている間だけ出す */
 export type PulseSource = 'sidechain' | 'main' | 'always';
 
 export const tuning = {
@@ -18,14 +18,14 @@ export const tuning = {
     release: 0.9,
   },
 
-  // 4 つ打ちで脈打つ動き。形は拍グリッド、出る / 出ないは実際にビートが鳴っているかで決まる
+  // 4 つ打ちで脈打つ動き。位置は transport の拍から取る
   pulse: {
-    source: 'sidechain' as PulseSource,
+    source: 'always' as PulseSource,
     /** 周期 (拍)。1 = 4 分音符ごと。 */
     cycleBeats: 1,
     /** 減衰の鋭さ。大きいほど短く鋭い。 */
     sharpness: 5,
-    /** ビートが止んでから、この拍数は脈打ち続け、そこから fadeBeats 拍かけて消える。 */
+    /** (source が always 以外の時だけ) ビートが止んでから、この拍数は脈打ち続け、そこから fadeBeats 拍かけて消える。 */
     holdBeats: 1.5,
     fadeBeats: 1,
   },
