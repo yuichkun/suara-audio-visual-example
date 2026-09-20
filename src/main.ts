@@ -2,7 +2,7 @@ import { useMidi, useTransport } from '@suara/sdk';
 import { createAudioGraph } from './kit/audio-graph';
 import { createGlslRenderer } from './kit/glsl/renderer';
 import { sceneForValue, type Scene } from './kit/glsl/scenes';
-import { createGatedPulse, createSignals } from './kit/signals';
+import { createSignals, pulse } from './kit/signals';
 import { params } from './params';
 import { SCENES } from './scenes';
 import { tuning } from './tuning';
@@ -19,7 +19,6 @@ async function main(): Promise<void> {
   await midi.whenReady();
   const graph = await createAudioGraph({ dsp: { url: dspUrl, processorName: 'suara-dsp' } });
   const signals = createSignals({ transport, midi, graph, params, motionEase: tuning.motion });
-  const beatPulse = createGatedPulse(tuning.pulse);
 
   // --- 描画 ---
   const renderer = createGlslRenderer(canvas, uniforms, {
@@ -30,6 +29,7 @@ async function main(): Promise<void> {
   });
   if (!renderer) return;
 
+  let tune = tuning;
   let scenes = SCENES;
   let current: Scene | null = null;
   const showScene = (scene: Scene | null): void => {
@@ -41,7 +41,8 @@ async function main(): Promise<void> {
   if (import.meta.hot) {
     import.meta.hot.accept('./tuning', (mod) => {
       if (!mod) return;
-      renderer.setConstants((mod['tuning'] as typeof tuning).shader);
+      tune = mod['tuning'] as typeof tuning;
+      renderer.setConstants(tune.shader);
       current = null;
     });
     import.meta.hot.accept('./scenes', (mod) => {
@@ -53,10 +54,8 @@ async function main(): Promise<void> {
 
   const loop = (nowMs: number): void => {
     const frame = signals.update(nowMs) as AppFrame;
-    const { source } = tuning.pulse;
-    const gate =
-      source === 'always' ? null : source === 'main' ? frame.audio.lowOnset : frame.sidechain.onset;
-    frame.pulse = beatPulse.update(frame.transport, gate, frame.dt).pulse;
+    const { beat, playing } = frame.transport;
+    frame.pulse = playing ? pulse(beat, tune.pulse.cycleBeats, tune.pulse.sharpness) : 0;
     showScene(sceneForValue(scenes, frame.params.scene));
     renderer.draw(frame);
     requestAnimationFrame(loop);

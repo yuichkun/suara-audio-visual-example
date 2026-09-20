@@ -2,13 +2,8 @@
 //
 //   shader  → src/shaders/*.frag に同名の const として埋め込まれる (shader 側には書かない)。
 //             number = float、[r, g, b] = vec3。保存すると reload なしで反映される
-//   motion / pulse → TS 側で使う値。反映には reload が要る
-
-/** 脈打ちを「出す / 出さない」を何で決めるか。脈の位置そのものは常に transport の拍。
- *   always   : transport だけ。再生中は常に拍で脈打つ (音は一切見ない)
- *   sidechain: sidechain bus にキックが届いている間だけ出す
- *   main     : main bus の低域にキックが鳴っている間だけ出す */
-export type PulseSource = 'sidechain' | 'main' | 'always';
+//   pulse   → 脈打ちの周期と鋭さ。保存すると reload なしで反映される
+//   motion  → 「動く / 止まる」の切り替わりの速さ。反映には reload が要る
 
 export const tuning = {
   motion: {
@@ -18,16 +13,12 @@ export const tuning = {
     release: 0.9,
   },
 
-  // 4 つ打ちで脈打つ動き。位置は transport の拍から取る
+  // 4 つ打ちの脈打ち。位置は transport の拍。再生中は常に脈打つ
   pulse: {
-    source: 'always' as PulseSource,
     /** 周期 (拍)。1 = 4 分音符ごと。 */
     cycleBeats: 1,
     /** 減衰の鋭さ。大きいほど短く鋭い。 */
     sharpness: 5,
-    /** (source が always 以外の時だけ) ビートが止んでから、この拍数は脈打ち続け、そこから fadeBeats 拍かけて消える。 */
-    holdBeats: 1.5,
-    fadeBeats: 1,
   },
 
   shader: {

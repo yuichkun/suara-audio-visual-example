@@ -53,7 +53,6 @@ src/
       audio.ts            level / 帯域 / onset / spectrum / waveform (main と sidechain 共用)
       params.ts           suara.json SSoT の param 宣言
       motion.ts           「いま動くべきか」の汎用スイッチ (default: transport が再生中)
-      pulse.ts            拍に同期したパルス。ビート (onset) が鳴っている間だけ出る
       envelope.ts         fps に依存しない平滑化 (follower / onset)
       frame.ts            上を全部まとめて 1 フレームぶんの Frame にする
     audio-graph.ts      main bus の passthrough + main / sidechain の AnalyserNode
@@ -87,8 +86,8 @@ param は `begin → setFromUser → end` を呼ぶと、VST では DAW に auto
 | 画面 / 時間 | `iResolution` `iTime` `iTimeDelta` `iFrame` |
 | transport | `iSongTime` `iBeat` `iBar` `iBeatPhase` `iBarPhase` `iTempo` `iPlaying` |
 | motion | `iMotion` `iMotionTime` |
-| audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iLowOnset` `iSpectrum` `iWaveform` |
-| audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScLowOnset` `iScSpectrum` |
+| audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iSpectrum` `iWaveform` |
+| audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScSpectrum` |
 | MIDI | `iNoteCount` `iLastNote` `iLastVelocity` `iNoteAge` `iMidiLevel` `iNotes` |
 | param | `pScene` `pIntensity` `pHue` `pSpeed` `pAudioAmount` |
 

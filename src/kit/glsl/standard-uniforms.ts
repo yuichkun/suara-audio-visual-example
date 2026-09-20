@@ -31,7 +31,6 @@ export const standardUniforms: readonly UniformSpec<Frame>[] = [
   { name: 'iMid', type: 'float', get: (f) => f.audio.mid },
   { name: 'iHigh', type: 'float', get: (f) => f.audio.high },
   { name: 'iOnset', type: 'float', get: (f) => f.audio.onset },
-  { name: 'iLowOnset', type: 'float', get: (f) => f.audio.lowOnset },
   { name: 'iSpectrum', type: 'texture', get: (f) => f.audio.spectrum },
   { name: 'iWaveform', type: 'texture', get: (f) => f.audio.waveform },
 
@@ -41,7 +40,6 @@ export const standardUniforms: readonly UniformSpec<Frame>[] = [
   { name: 'iScMid', type: 'float', get: (f) => f.sidechain.mid },
   { name: 'iScHigh', type: 'float', get: (f) => f.sidechain.high },
   { name: 'iScOnset', type: 'float', get: (f) => f.sidechain.onset },
-  { name: 'iScLowOnset', type: 'float', get: (f) => f.sidechain.lowOnset },
   { name: 'iScSpectrum', type: 'texture', get: (f) => f.sidechain.spectrum },
 
   // --- MIDI ---
