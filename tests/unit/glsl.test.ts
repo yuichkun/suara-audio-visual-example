@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildFragmentSource, type UniformSpec } from '../../src/kit/glsl/renderer';
+import { buildConstantDecls, buildFragmentSource, type UniformSpec } from '../../src/kit/glsl/renderer';
 import { sceneForValue, scenesFromGlob } from '../../src/kit/glsl/scenes';
 import { paramUniformName } from '../../src/kit/glsl/standard-uniforms';
 
@@ -39,5 +39,28 @@ describe('Feature: Scene param → scene', () => {
 
   it('scene が 1 つも無ければ null', () => {
     expect(sceneForValue([], 0)).toBeNull();
+  });
+});
+
+describe('Feature: TS の定数 → GLSL const', () => {
+  it('number は float、配列は vecN、boolean は bool になる', () => {
+    expect(buildConstantDecls({ SPIN: 0.15, COUNT: 60, ACCENT: [0.25, 0.85, 1], ON: true })).toBe(
+      [
+        'const float SPIN = 0.15;',
+        'const float COUNT = 60.0;',
+        'const vec3 ACCENT = vec3(0.25, 0.85, 1.0);',
+        'const bool ON = true;',
+      ].join('\n'),
+    );
+  });
+
+  it('shader source では uniform の後・user source の前に入る', () => {
+    const src = buildFragmentSource('void mainImage(out vec4 c, in vec2 p) {}', [], { K: 2 });
+    expect(src).toMatch(/const float K = 2\.0;\nout vec4 suaraFragColor;\n#line 1\n/);
+  });
+
+  it('NaN や長さ 1 の配列は弾く', () => {
+    expect(() => buildConstantDecls({ BAD: Number.NaN })).toThrow();
+    expect(() => buildConstantDecls({ BAD: [1] })).toThrow();
   });
 });

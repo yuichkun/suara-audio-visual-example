@@ -10,6 +10,9 @@ export type UniformSpec<F> =
   /** 1 行 × N 列の float texture (R16F)。shader では texture() / texelFetch() で読む。 */
   | { name: string; type: 'texture'; get(frame: F): Float32Array };
 
+/** TS から shader に埋め込む定数。number → float、長さ 2〜4 の配列 → vecN、boolean → bool。 */
+export type ShaderConstants = Readonly<Record<string, number | boolean | readonly number[]>>;
+
 const VERT = `#version 300 es
 precision highp float;
 const vec2 POS[3] = vec2[3](vec2(-1.0,-1.0), vec2(3.0,-1.0), vec2(-1.0,3.0));
@@ -20,16 +23,35 @@ function glslType(type: UniformSpec<unknown>['type']): string {
   return type === 'texture' ? 'sampler2D' : type;
 }
 
+function glslFloat(v: number): string {
+  if (!Number.isFinite(v)) throw new Error(`shader constant must be finite (got ${v})`);
+  return Number.isInteger(v) ? v.toFixed(1) : String(v);
+}
+
+/** ShaderConstants → `const float NAME = 1.5;` の並び。 */
+export function buildConstantDecls(constants: ShaderConstants): string {
+  return Object.entries(constants)
+    .map(([name, v]) => {
+      if (typeof v === 'boolean') return `const bool ${name} = ${v};`;
+      if (typeof v === 'number') return `const float ${name} = ${glslFloat(v)};`;
+      if (v.length < 2 || v.length > 4) throw new Error(`${name}: vector constants need 2-4 components`);
+      return `const vec${v.length} ${name} = vec${v.length}(${v.map(glslFloat).join(', ')});`;
+    })
+    .join('\n');
+}
+
 /** user の .frag を完全な fragment shader にする。`#line 1` でエラー行番号を .frag に合わせる。 */
 export function buildFragmentSource<F>(
   userSrc: string,
   uniforms: readonly UniformSpec<F>[],
+  constants: ShaderConstants = {},
 ): string {
   const decls = uniforms.map((u) => `uniform ${glslType(u.type)} ${u.name};`).join('\n');
   return `#version 300 es
 precision highp float;
 uniform vec3 iResolution;
 ${decls}
+${buildConstantDecls(constants)}
 out vec4 suaraFragColor;
 #line 1
 ${userSrc}
@@ -46,6 +68,8 @@ export interface GlslRenderer<F> {
   setFragment(src: string): boolean;
   /** 描画せずにコンパイルだけ試す。 */
   compileOnly(src: string): CompileResult;
+  /** 埋め込む定数を差し替える。反映は次の setFragment から。 */
+  setConstants(constants: ShaderConstants): void;
   draw(frame: F): void;
 }
 
@@ -53,6 +77,8 @@ export interface GlslRendererOptions {
   onError?: (message: string | null) => void;
   /** devicePixelRatio の上限 (重い shader 用)。default 2。 */
   maxPixelRatio?: number;
+  /** shader に const として埋め込む値 (調整用の定数を TS 側の 1 ファイルで持つため)。 */
+  constants?: ShaderConstants;
   /** canvas の中身を後から readPixels したい時だけ true (テスト用)。 */
   preserveDrawingBuffer?: boolean;
 }
@@ -64,6 +90,7 @@ export function createGlslRenderer<F>(
 ): GlslRenderer<F> | null {
   const { onError } = opts;
   const maxPixelRatio = opts.maxPixelRatio ?? 2;
+  let constants: ShaderConstants = opts.constants ?? {};
   const ctx = canvas.getContext('webgl2', {
     antialias: false,
     preserveDrawingBuffer: opts.preserveDrawingBuffer ?? false,
@@ -95,7 +122,7 @@ export function createGlslRenderer<F>(
   }
 
   function link(userSrc: string): WebGLProgram | string {
-    const fs = compile(gl.FRAGMENT_SHADER, buildFragmentSource(userSrc, uniforms));
+    const fs = compile(gl.FRAGMENT_SHADER, buildFragmentSource(userSrc, uniforms, constants));
     if (typeof fs === 'string') return fs;
     const prog = gl.createProgram();
     if (!prog) return 'createProgram failed';
@@ -158,6 +185,10 @@ export function createGlslRenderer<F>(
   }
 
   return {
+    setConstants(next) {
+      constants = next;
+    },
+
     compileOnly(src) {
       const prog = link(src);
       if (typeof prog === 'string') return { ok: false, log: prog };
