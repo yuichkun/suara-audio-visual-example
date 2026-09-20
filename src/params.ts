@@ -12,6 +12,8 @@ export const params = defineParams(manifest.parameters, {
   audioAmount: { title: 'AudioAmount' },
   // 再生中の形。0 = 割れた球 / 1 = 結晶 / 2 = 輪。間の値は 2 つの形の中間になる
   shape: { title: 'Shape', min: 0, max: 2 },
+  // クライマックスのノブ。0 = 平時、上げるほど場面全体が盛り上がる (tuning.energy)
+  energy: { title: 'Energy' },
 });
 
 export type ParamKey = keyof typeof params;

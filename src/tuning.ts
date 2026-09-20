@@ -2,7 +2,7 @@
 //
 //   shader  → src/shaders/*.frag に同名の const として埋め込まれる (shader 側には書かない)。
 //             number = float、[r, g, b] = vec3。保存すると reload なしで反映される
-//   pulse / bass → 脈打ちと低音反応の効き方。保存すると reload なしで反映される
+//   pulse / bass / energy → 脈打ち・低音反応・クライマックスの効き方。保存すると reload なしで反映される
 //   motion / shape → 切り替わりの速さ。反映には reload が要る
 
 export const tuning = {
@@ -17,6 +17,20 @@ export const tuning = {
   shape: {
     /** 切り替えてから morph がほぼ終わるまでの秒数。 */
     morphSeconds: 1.6,
+  },
+
+  // クライマックスのノブ (automation の Energy: 0 = 平時 〜 1 = 最大)。速さ系はここ、見た目の量は shader の ENERGY_* / SWARM_*
+  energy: {
+    /** ノブの動きを均す時定数 (秒)。 */
+    smooth: 0.35,
+    /** 最大の時、本体の回転・輪・パッドが何倍速くなるか (+1 倍からの上乗せ)。 */
+    spinBoost: 7,
+    /** 最大の時、まわりの群れが何倍速くなるか (上乗せ)。 */
+    swarmBoost: 5,
+    /** 最大の時、カメラが本体のまわりを回り込む速さ (rad/秒)。 */
+    orbitSpeed: 0.7,
+    /** 最大の時、ホールが回る速さ (rad/秒)。低音による回転に上乗せされる。 */
+    hallSpin: 0.45,
   },
 
   // 低音への反応 (世界の側が反応する)。sidechain bus の低域を見る
@@ -118,6 +132,34 @@ export const tuning = {
     /** 波紋の速さ (距離/秒) と、消えていく速さ。 */
     BASS_WAVE_SPEED: 7,
     BASS_WAVE_DECAY: 3.5,
+
+    // --- クライマックス (Energy = 1 の時の量。間は Energy の 2 乗で効いていく) ---
+    /** 脈打ちが何倍大きくなるか (上乗せ)。 */
+    ENERGY_PULSE: 3,
+    /** カメラ: 寄る割合 (0.2 = 2 割近づく)、下がる高さ、画角が広がる量、拍ごとの傾き (rad)。 */
+    ENERGY_CAM_PUSH: 0.2,
+    ENERGY_CAM_DROP: 0.9,
+    ENERGY_CAM_WIDEN: 0.45,
+    ENERGY_CAM_KICK: 0.025,
+    /** 拍ごとにも床に波紋が走る (0 = 低音の時だけ)。 */
+    ENERGY_BEAT_WAVE: 1,
+    /** 「超」状態: Energy がこの値を超えたあたりからアクセント色が変わり、本体からオーラが立ち昇る。 */
+    ENERGY_HOT_FROM: 0.45,
+    ENERGY_ACCENT: [1.0, 0.72, 0.12],
+    /** オーラの濃さ (0 = 無し) と、立ち昇る高さ。 */
+    AURA_STRENGTH: 1,
+    AURA_HEIGHT: 4.4,
+
+    // --- 群れ (Energy で本体のまわりに増えていくもの) ---
+    /** 衛星: 本体の小さな分身が 3 つの軌道を回る。いちばん内側の軌道半径、軌道の間隔、大きさ。 */
+    SWARM_ORBIT_RADIUS: 2.1,
+    SWARM_ORBIT_STEP: 0.75,
+    SWARM_SAT_SIZE: 0.13,
+    /** 破片: 細かい粒が 5 層の渦を巻いて昇る。渦の内側の半径、層の間隔、粒の大きさ、昇る速さ。 */
+    SWARM_VORTEX_RADIUS: 2.4,
+    SWARM_VORTEX_STEP: 0.45,
+    SWARM_BIT_SIZE: 0.06,
+    SWARM_RISE_SPEED: 0.5,
 
     // --- カメラ ---
     CAM_DISTANCE: 8,

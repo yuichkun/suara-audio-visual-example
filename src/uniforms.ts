@@ -13,4 +13,8 @@ export const uniforms: readonly UniformSpec<AppFrame>[] = [
   { name: 'iBassHitAge', type: 'float', get: (f) => f.bassHitAge },
   { name: 'iBassHit', type: 'float', get: (f) => f.bassHit },
   { name: 'iHallAngle', type: 'float', get: (f) => f.hallAngle },
+  { name: 'iEnergy', type: 'float', get: (f) => f.energy },
+  { name: 'iDriveTime', type: 'float', get: (f) => f.driveTime },
+  { name: 'iSwarmTime', type: 'float', get: (f) => f.swarmTime },
+  { name: 'iOrbitAngle', type: 'float', get: (f) => f.orbitAngle },
 ];

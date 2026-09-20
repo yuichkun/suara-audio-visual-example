@@ -4,6 +4,9 @@
 //            sidechain の低音に反応するのは空間の側 (色ではなく形と動きで):
 //              - 低音が立ち上がるたびに床に波紋が走り、その波で床の面が傾いて映り込みが波打つ
 //              - 低音が鳴っている間、ホール (壁とドーム) がオブジェクトのまわりを回る
+//   climax : iEnergy (automation の Energy、0 = 平時) を上げるほど全体が盛り上がる。回転が速まり、脈打ちが
+//            大きくなり、本体のまわりに衛星と破片の群れが増え、カメラが回り込みながら寄って煽る。
+//            上のほうではアクセント色が金に変わり、本体から炎のようなオーラが立ち昇る
 //   object : 白いセラミックの殻 + 黒い核 + 発光する輪。iMotion (= 再生中かどうか) で姿が変わる
 //            停止中: 閉じた卵。パッドのすぐ上で直立して静止し、合わせ目から光が呼吸するように漏れる
 //            再生中: 浮き上がって開き、傾いた軸でゆっくり回る。形は iShapeWeights で 3 つの間を morph する
@@ -16,10 +19,12 @@
 #define TAU 6.28318530718
 
 // object を包む球。これの外では raymarch しない
-const float BOUND_R = (1.0 + PULSE_SCALE) *
+const float BOUND_R = (1.0 + PULSE_SCALE * (1.0 + ENERGY_PULSE)) *
   max(max(1.075 * max(EGG_STRETCH, 1.0), CRYSTAL_SIZE * CRYSTAL_STRETCH + 0.02), RING_RADIUS + 0.06);
 const vec3 KEY_DIR = normalize(vec3(-0.45, 0.85, 0.4));
 const float WALL_TOP = radians(WALL_TOP_DEG);
+// 衛星まで含めて包む球 (破片は raymarch しないので含めない)
+const float SWARM_R = SWARM_ORBIT_RADIUS + 2.0 * SWARM_ORBIT_STEP + SWARM_SAT_SIZE * 2.5;
 
 const float MAT_SHELL = 1.0;
 const float MAT_CORE = 2.0;
@@ -41,6 +46,12 @@ float gPulse;     // 4 つ打ちの脈打ち 0..1。開いている間だけ効�
 float gScale;     // 脈打ちによる膨らみ
 float gRingPower; // 発光輪の強さ
 float gCoreR;     // 核の半径 (結晶の時は中に収まるよう少し小さくなる)
+float gE;         // クライマックスのノブ 0..1 (動いている間だけ効く)
+float gE2;        // その 2 乗。低いうちは穏やかで、上のほうで一気に効かせたい量に使う
+float gHot;       // Energy の上のほうだけで立ち上がる量 0..1。色が変わり、オーラが出る
+vec3 gAccent;     // いまのアクセント色 (平時 ACCENT → 高まると ENERGY_ACCENT)
+float gBoundR;    // raymarch する範囲の半径。群れが出ている間だけ広がる
+mat2 gOrbitTiltX[3], gOrbitTiltZ[3];
 float gBassWave;  // 低音の立ち上がりから広がる波紋の濃さ 0..1
 vec3 gCenter;
 vec3 gShape;      // 形の重み [割れた球, 結晶, 輪]。停止中は必ず球 (= 卵) に戻る
@@ -51,7 +62,12 @@ const float SHELL_T = 0.032; // 殻の厚みの半分
 void setupObject() {
   gOpen = smoothstep(0.0, 1.0, iMotion);
   gPulse = iPulse * gOpen;
-  gScale = 1.0 + PULSE_SCALE * gPulse;
+  gE = iEnergy * gOpen;
+  gE2 = gE * gE;
+  gBoundR = gE < 0.002 ? BOUND_R : SWARM_R;
+  gHot = smoothstep(ENERGY_HOT_FROM, 1.0, gE);
+  gAccent = mix(ACCENT, ENERGY_ACCENT, gHot);
+  gScale = 1.0 + PULSE_SCALE * (1.0 + ENERGY_PULSE * gE2) * gPulse;
   // 停止中は待機ランプのようにゆっくり呼吸し、再生中は拍で明るくなる
   float breath = BREATH_LEVEL + BREATH_DEPTH * sin(iTime * BREATH_SPEED);
   gRingPower = mix(breath, 1.0 + PULSE_GLOW * gPulse, gOpen);
@@ -64,12 +80,19 @@ void setupObject() {
   gCoreR = mix(CORE_RADIUS, min(CORE_RADIUS, crystalInner), gShape.y);
 
   gTilt = rot(TILT * gOpen);
-  gSpin = rot(iMotionTime * SPIN_SPEED);
-  float t = iMotionTime * RING_SPEED;
+  gSpin = rot(iDriveTime * SPIN_SPEED);
+  float t = iDriveTime * RING_SPEED;
   gBandA = rot(t);
   gBandB = rot(t * 0.73 + 1.0);
   gBandC = rot(-t * 0.55 + 2.2);
   gBandYaw = rot(1.05);
+  // 衛星の 3 つの軌道面の傾き
+  gOrbitTiltX[0] = rot(0.35);
+  gOrbitTiltZ[0] = rot(0.1);
+  gOrbitTiltX[1] = rot(-0.15);
+  gOrbitTiltZ[1] = rot(-0.4);
+  gOrbitTiltX[2] = rot(-0.25);
+  gOrbitTiltZ[2] = rot(0.22);
 }
 
 // world → object 空間。再生中は傾いた軸のまわりを回る。停止中は上半分が伸びて卵形になる
@@ -164,18 +187,97 @@ vec2 mapObject(vec3 p) {
   return res;
 }
 
+// ---------------------------------------------------------------------------------------------
+// 群れ: Energy を上げると本体のまわりに増えていくもの。平時 (Energy 0) は何も無く、計算もしない。
+//   衛星: 本体の小さな分身。傾いた 3 つの軌道を回る
+//   破片: 細かい欠片。床から現れて、本体のまわりを渦を巻きながら昇る
+// どちらも「空間を区切って 1 個ぶんだけ計算する」ので、数が増えても重さはほぼ変わらない。
+// 1 個 1 個は番号から決まる閾値を持っていて、Energy がそれを超えた順に膨らんで現れる。
+// ---------------------------------------------------------------------------------------------
+
+float hash11(float n) {
+  return fract(sin(n * 91.3458) * 47453.5453);
+}
+
+// 1 回で 4 つの乱数 (sin を使わないので軽い)
+vec4 hash42(vec2 p) {
+  vec4 p4 = fract(vec4(p.xyxy) * vec4(0.1031, 0.1030, 0.0973, 0.1099));
+  p4 += dot(p4, p4.wzxy + 33.33);
+  return fract((p4.xxyz + p4.yzzw) * p4.zywx);
+}
+
+// Energy が threshold を超えたら、少しかけて 0 → 1 に膨らむ
+float appear(float threshold) {
+  return smoothstep(threshold, threshold + 0.18, gE);
+}
+
+// 群れの 1 個。本体の形に合わせて 球 ↔ 八面体
+float sdBit(vec3 p, float s) {
+  float d = length(p) - s;
+  if (gShape.y > 0.001) d = mix(d, sdOctahedron(p, s * 1.35), gShape.y);
+  return d;
+}
+
+// 軌道 1 本ぶんの衛星。p は軌道面 (xz) の座標系。x = 距離、y = 0 なら白 / 1 なら黒
+vec2 sdOrbit(vec3 p, float radius, float count, float phase, float seed) {
+  float rad = length(p.xz);
+  float far = length(vec2(rad - radius, p.y)) - SWARM_SAT_SIZE * 2.0;
+  if (far > 0.5) return vec2(far, 0.0); // 軌道から遠い: 中身を見ずに粗い距離を返す
+
+  float sector = TAU / count;
+  float a = atan(p.z, p.x) + phase;
+  float id = mod(floor(a / sector), count);
+  float la = mod(a, sector) - 0.5 * sector;
+  vec3 q = vec3(cos(la) * rad - radius, p.y, sin(la) * rad);
+  if (gShape.y > 0.001) q.xy *= rot(iSwarmTime * 1.7 + id * 2.4); // 結晶の分身は自転する
+
+  float size = SWARM_SAT_SIZE * (0.55 + 0.9 * hash11(id * 1.37 + seed + 3.1));
+  size *= appear(0.04 + 0.78 * hash11(id + seed)) * (1.0 + 0.5 * gPulse);
+  float d = size > 0.004 ? sdBit(q, size) : 1e3;
+  // 空の区画で隣の区画の中身を飛び越えないよう、区画の端までの距離で抑える
+  float edge = (0.5 * sector - abs(la)) * rad + 0.05;
+  return vec2(min(d, edge), step(0.72, hash11(id * 2.3 + seed + 7.7)));
+}
+
+vec2 mapSwarm(vec3 p) {
+  p -= gCenter;
+  vec2 res = vec2(1e3, 0.0);
+  for (int k = 0; k < 3; k++) {
+    float fk = float(k);
+    vec3 o = p;
+    o.yz *= gOrbitTiltX[k];
+    o.xy *= gOrbitTiltZ[k];
+    float dir = k == 1 ? -1.0 : 1.0;
+    vec2 s = sdOrbit(o, SWARM_ORBIT_RADIUS + fk * SWARM_ORBIT_STEP, 7.0 + fk * 4.0,
+                     iSwarmTime * dir * (0.5 - 0.11 * fk), fk * 17.0);
+    if (s.x < res.x) res = s;
+  }
+  return res;
+}
+
+// 本体 + 群れ。x = 距離, y = material
+vec2 mapScene(vec3 p) {
+  if (gE < 0.002) return mapObject(p);
+  // 本体から遠い所では本体の中身を見ない (包む球までの距離で代用)
+  float away = length(p - gCenter) - BOUND_R;
+  vec2 res = away > 0.3 ? vec2(away, MAT_SHELL) : mapObject(p);
+  vec2 s = mapSwarm(p);
+  if (s.x < res.x) res = vec2(s.x, s.y > 0.5 ? MAT_CORE : MAT_SHELL);
+  return res;
+}
+
 vec3 calcNormal(vec3 p) {
   const vec2 e = vec2(0.0008, -0.0008);
   return normalize(
-    e.xyy * mapObject(p + e.xyy).x + e.yyx * mapObject(p + e.yyx).x +
-    e.yxy * mapObject(p + e.yxy).x + e.xxx * mapObject(p + e.xxx).x);
+    e.xyy * mapScene(p + e.xyy).x + e.yyx * mapScene(p + e.yyx).x +
+    e.yxy * mapScene(p + e.yxy).x + e.xxx * mapScene(p + e.xxx).x);
 }
 
 // bounding sphere との交差区間。x > y なら当たらない
-vec2 boundHit(vec3 ro, vec3 rd) {
+vec2 boundHit(vec3 ro, vec3 rd, float radius) {
   vec3 oc = ro - gCenter;
   float b = dot(oc, rd);
-  float h = b * b - (dot(oc, oc) - BOUND_R * BOUND_R);
+  float h = b * b - (dot(oc, oc) - radius * radius);
   if (h < 0.0) return vec2(1.0, -1.0);
   h = sqrt(h);
   return vec2(-b - h, -b + h);
@@ -184,12 +286,12 @@ vec2 boundHit(vec3 ro, vec3 rd) {
 // 当たれば x = t, y = material。外れは x < 0。glow には発光輪の近くを通った量が積まれる
 vec2 marchObject(vec3 ro, vec3 rd, out float glow) {
   glow = 0.0;
-  vec2 tb = boundHit(ro, rd);
+  vec2 tb = boundHit(ro, rd, gBoundR);
   if (tb.x > tb.y || tb.y < 0.0) return vec2(-1.0);
   float t = max(tb.x, 0.0);
-  for (int i = 0; i < 96; i++) {
+  for (int i = 0; i < 128; i++) {
     vec3 p = ro + rd * t;
-    vec2 d = mapObject(p);
+    vec2 d = mapScene(p);
     float dr = sdRing(toObject(p));
     glow += gRingPower * 0.0012 / (0.003 + dr * dr * 140.0);
     if (d.x < 0.0006 * t) return vec2(t, d.y);
@@ -199,8 +301,9 @@ vec2 marchObject(vec3 ro, vec3 rd, out float glow) {
   return vec2(-1.0);
 }
 
+// key light の影。本体のぶんだけ (群れの影までは追わない)
 float softShadow(vec3 ro, vec3 rd) {
-  vec2 tb = boundHit(ro, rd);
+  vec2 tb = boundHit(ro, rd, BOUND_R);
   if (tb.x > tb.y || tb.y < 0.0) return 1.0;
   float t = max(tb.x, 0.02);
   float res = 1.0;
@@ -245,7 +348,7 @@ vec3 env(vec3 rd) {
     wall = mix(HORIZON, wall, smoothstep(0.0, 0.6, h));
     // 壁の上端: 暗い見切りと accent の細い線
     wall *= 1.0 - 0.3 * smoothstep(0.955, 0.97, h);
-    wall = mix(wall, ACCENT, 0.7 * smoothstep(0.925, 0.935, h) * smoothstep(0.955, 0.945, h));
+    wall = mix(wall, gAccent, 0.7 * smoothstep(0.925, 0.935, h) * smoothstep(0.955, 0.945, h));
     return wall;
   }
 
@@ -270,7 +373,7 @@ vec3 env(vec3 rd) {
 }
 
 vec3 shadeObject(vec3 pos, vec3 rd, float mat) {
-  if (mat == MAT_RING) return (ACCENT * 3.0 + 1.0) * gRingPower;
+  if (mat == MAT_RING) return (gAccent * 3.0 + 1.0) * gRingPower;
 
   vec3 n = calcNormal(pos);
   vec3 r = reflect(rd, n);
@@ -282,9 +385,9 @@ vec3 shadeObject(vec3 pos, vec3 rd, float mat) {
   // 発光輪からの色つきの光
   vec3 q = toObject(pos);
   float dr = sdRing(q);
-  vec3 ringLight = ACCENT * gRingPower * 0.45 / (1.0 + 90.0 * dr * dr);
+  vec3 ringLight = gAccent * gRingPower * 0.45 / (1.0 + 90.0 * dr * dr);
   // 閉じている間、合わせ目から漏れる光
-  ringLight += ACCENT * gRingPower * (1.0 - gOpen) * SEAM_LEAK * exp(-abs(q.y) * 38.0);
+  ringLight += gAccent * gRingPower * (1.0 - gOpen) * SEAM_LEAK * exp(-abs(q.y) * 38.0);
 
   if (mat == MAT_CORE) {
     vec3 f0 = vec3(0.05, 0.055, 0.07);
@@ -304,9 +407,126 @@ vec3 shadeObject(vec3 pos, vec3 rd, float mat) {
   return diff * (1.0 - F) + spec;
 }
 
+// 渦の破片。本体を囲む何層かの円筒の面を (角度, 高さ) の格子に区切り、1 区画に 1 個の小さな球。
+// 数が多いので raymarch はしない: ray と円筒の交点を求め、その区画の球とだけ解析的に交差を取る。
+// (1 本の ray あたり「層の数 × 2」回の計算で済むので、何千個あっても重さは変わらない)
+const float BIT_CELL = 0.5;
+const float BIT_TWIST = 0.3; // 高さあたりの角度のずれ (= らせんの傾き)
+const int BIT_SHELLS = 5;
+
+// o, d = ray (world)。tBest より手前で当たれば tBest / n / black を更新する
+void hitBits(vec3 o, vec3 d, inout float tBest, inout vec3 n, inout float black, inout bool hitBit) {
+  o -= gCenter;
+  float A = dot(d.xz, d.xz);
+  if (A < 1e-5) return;
+  float B = dot(o.xz, d.xz);
+  for (int k = 0; k < BIT_SHELLS; k++) {
+    float fk = float(k);
+    float R = SWARM_VORTEX_RADIUS + fk * SWARM_VORTEX_STEP;
+    // 交点は粒がはみ出す分だけ外側の円筒で取る (粒に触れる ray は必ずこの円筒を通る)
+    float hull = R + SWARM_BIT_SIZE * 2.2;
+    float disc = B * B - A * (dot(o.xz, o.xz) - hull * hull);
+    if (disc < 0.0) continue;
+    float sq = sqrt(disc);
+    float count = floor(TAU * R / BIT_CELL);
+    float sector = TAU / count;
+    // 層ごとに回る向きと速さ、昇る速さを変える
+    float spin = iSwarmTime * (0.35 - 0.05 * fk) * (k % 2 == 0 ? 1.0 : -1.0);
+    float rise = iSwarmTime * SWARM_RISE_SPEED * (1.0 + 0.2 * fk);
+
+    // 手前側 / 奥側の交点 × (その区画 / 角度方向で近いほうの隣の区画)。斜めの ray で粒が欠けないように
+    for (int s = 0; s < 4; s++) {
+      float t = (-B + (s < 2 ? -sq : sq)) / A;
+      if (t < 0.0 || t > tBest + 0.4) continue;
+      vec3 p = o + d * t;
+      float ca0 = (atan(p.z, p.x) + spin + p.y * BIT_TWIST) / sector;
+      float cx = floor(ca0) + (s % 2 == 0 ? 0.0 : (fract(ca0) > 0.5 ? 1.0 : -1.0));
+      vec2 cell = vec2(cx, floor((p.y - rise) / BIT_CELL));
+      vec2 id = vec2(mod(cell.x, count), cell.y) + fk * 31.0;
+      vec4 h = hash42(id);
+
+      // 区画の中のどこにいるか → world での中心
+      vec2 room = max(0.5 * vec2(sector * R, BIT_CELL) - SWARM_BIT_SIZE * 1.5, 0.0);
+      vec2 j = (h.xy - 0.5) * 2.0 * room;
+      float cy = (cell.y + 0.5) * BIT_CELL + j.y + rise;
+      float ca = (cell.x + 0.5) * sector + j.x / R - spin - cy * BIT_TWIST;
+      vec3 c = vec3(R * cos(ca), cy, R * sin(ca));
+
+      // 番号ごとの閾値を Energy が超えたら現れる。床から現れて上で消え、拍でわずかに膨らむ
+      float size = SWARM_BIT_SIZE * (0.4 + h.z) * appear(0.08 + 0.74 * h.w) * (1.0 + 0.5 * gPulse);
+      size *= smoothstep(FLOOR_Y + 0.05, FLOOR_Y + 0.7, cy + gCenter.y) * smoothstep(3.8, 2.6, cy);
+      // 目の前を横切る粒は小さくする (画面を塞いで本体が埋もれないように)
+      size *= smoothstep(0.8, 3.2, length(c - o));
+      if (size < 0.004) continue;
+
+      vec3 oc = o - c;
+      float b = dot(oc, d);
+      float hh = b * b - (dot(oc, oc) - size * size);
+      if (hh < 0.0) continue;
+      float tb = -b - sqrt(hh);
+      if (tb > 0.0 && tb < tBest) {
+        tBest = tb;
+        n = normalize(oc + d * tb);
+        black = step(0.8, fract(h.z * 7.13));
+        hitBit = true;
+      }
+    }
+  }
+}
+
+// 破片の見た目。本体の殻 / 核と同じ 2 つの質感 (影や AO までは追わない)
+vec3 shadeBit(vec3 n, vec3 rd, float black) {
+  vec3 r = reflect(rd, n);
+  float fres = pow(1.0 - clamp(dot(n, -rd), 0.0, 1.0), 5.0);
+  float key = clamp(dot(n, KEY_DIR), 0.0, 1.0);
+  float sky = 0.5 + 0.5 * n.y;
+  if (black > 0.5) {
+    vec3 f0 = vec3(0.05, 0.055, 0.07);
+    return env(r) * (f0 + (1.0 - f0) * fres) + vec3(0.015) * (key + sky);
+  }
+  vec3 diff = vec3(0.9, 0.91, 0.93) * (vec3(1.0, 0.98, 0.95) * key * 0.5 + mix(vec3(0.5, 0.51, 0.55), vec3(0.95, 0.97, 1.0), sky) * 0.72);
+  float F = 0.04 + 0.96 * fres;
+  return diff * (1.0 - F) + env(r) * F;
+}
+
+// 値ノイズ (オーラの炎のゆらぎ用)
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash42(i).x;
+  float b = hash42(i + vec2(1.0, 0.0)).x;
+  float c = hash42(i + vec2(0.0, 1.0)).x;
+  float d = hash42(i + vec2(1.0, 1.0)).x;
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+// オーラ: Energy が高まると、本体から炎のような気が立ち昇る (0..1)。ray が本体の中心軸に
+// いちばん近づく点で、炎の輪郭 (下が太く上が細い) の内側にいるかを見る
+float auraAmount(vec3 ro, vec3 rd) {
+  if (gHot < 0.002) return 0.0;
+  vec3 oc = gCenter - ro;
+  vec3 pc = rd * dot(oc, rd) - oc; // 中心から見た、ray の最接近点
+  float h = pc.y;
+  float w = length(pc - vec3(0.0, h, 0.0));
+  float side = atan(pc.z, pc.x);
+  float flow = iSwarmTime * 1.4;
+  float n = vnoise(vec2(side * 2.2, h * 1.1 - flow)) * 0.65 + vnoise(vec2(side * 5.0 + 3.0, h * 2.6 - flow * 1.7)) * 0.35;
+  float envelope = mix(2.5, 0.2, smoothstep(-0.9, AURA_HEIGHT, h)) * smoothstep(-1.5, -0.7, h);
+  envelope *= (0.62 + 0.75 * n) * (1.0 + 0.3 * gPulse);
+  return smoothstep(envelope, envelope * 0.55, w) * gHot;
+}
+
 // 幅 w の線 (中心 0)。fw = その座標の画面上の変化量
 float aaLine(float x, float w, float fw) {
   return 1.0 - smoothstep(w, w + fw * 1.5, abs(x));
+}
+
+// 波紋 1 つぶんを足す。age = 生まれてからの秒、strength = 濃さ
+void addWave(float rr, float fr, float age, float strength, inout float wave, inout float slope) {
+  float x = rr - (PAD_RADIUS + age * BASS_WAVE_SPEED);
+  wave += strength * (aaLine(x, 0.015, fr) + 0.3 * smoothstep(0.7, 0.0, abs(x)));
+  slope += strength * exp(-x * x * 3.0) * sin(x * 7.0);
 }
 
 vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
@@ -333,22 +553,23 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   float fr = fwidth(rr);
   float rings = aaLine(rr - PAD_RADIUS, 0.012, fr) + aaLine(rr - (PAD_RADIUS + 0.18), 0.003, fr) +
                 aaLine(rr - PAD_RADIUS * 1.94, 0.003, fr);
-  float az = atan(pos.z - c.z, pos.x - c.x) + iMotionTime * PAD_SPIN_SPEED;
+  float az = atan(pos.z - c.z, pos.x - c.x) + iDriveTime * PAD_SPIN_SPEED;
   float ticks = aaLine(fract(az / TAU * 72.0) - 0.5, 0.06, fwidth(az) * 72.0 / TAU) *
                 step(PAD_RADIUS + 0.04, rr) * step(rr, PAD_RADIUS + 0.14);
   col = mix(col, vec3(0.35, 0.38, 0.42), clamp(rings + ticks, 0.0, 1.0) * 0.55 * fade);
   // パッドの一部だけ accent 色の弧
   float arc = aaLine(rr - PAD_RADIUS, 0.012, fr) * smoothstep(0.75, 0.8, sin(az * 1.0));
-  col = mix(col, ACCENT * 0.9, arc * 0.9 * gRingPower);
+  col = mix(col, gAccent * 0.9, arc * 0.9 * gRingPower);
 
-  // 低音: 立ち上がるたびに、パッドから外へ波紋が走る (細い線 + 淡い帯)
-  float waveR = PAD_RADIUS + iBassHitAge * BASS_WAVE_SPEED;
-  float wave = aaLine(rr - waveR, 0.015, fr) + 0.3 * smoothstep(0.7, 0.0, abs(rr - waveR));
-  col = mix(col, ACCENT * 0.9, clamp(wave, 0.0, 1.0) * gBassWave * BASS_WAVE * exp(-0.03 * t));
-
-  // 低音の波: 波紋の位置で床の面がわずかに傾く (= 波が通る所で映り込みと光の当たり方が波打つ)
-  float wx = rr - waveR;
-  float slope = BASS_WAVE_BEND * gBassWave * exp(-wx * wx * 3.0) * sin(wx * 7.0) * exp(-0.03 * t);
+  // 波紋: パッドから外へ走る (細い線 + 淡い帯)。波の位置では床の面がわずかに傾き、
+  // 映り込みと光の当たり方が波打つ。低音が立ち上がるたびに 1 つ、Energy が高い時は拍ごとにも 1 つ
+  float wave = 0.0;
+  float slope = 0.0;
+  addWave(rr, fr, iBassHitAge, gBassWave, wave, slope);
+  float beatAge = iBeatPhase * 60.0 / max(iTempo, 1.0);
+  addWave(rr, fr, beatAge, ENERGY_BEAT_WAVE * gE2 * iPlaying * exp(-beatAge * BASS_WAVE_DECAY), wave, slope);
+  col = mix(col, gAccent * 0.9, clamp(wave, 0.0, 1.0) * BASS_WAVE * exp(-0.03 * t));
+  slope *= BASS_WAVE_BEND * exp(-0.03 * t);
   vec2 outward = (pos.xz - c.xz) / max(rr, 0.001);
   col *= 1.0 - 1.6 * slope * dot(outward, normalize(KEY_DIR.xz));
 
@@ -358,8 +579,13 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   r.y = abs(r.y);
   float glow;
   vec2 hit = marchObject(pos + n * 0.002, r, glow);
-  vec3 refl = hit.x > 0.0 ? shadeObject(pos + r * hit.x, r, hit.y) : env(r);
-  refl = mix(refl, ACCENT * 1.5, clamp(glow, 0.0, 1.0) * 0.5);
+  float tRefl = hit.x > 0.0 ? hit.x : 1e9;
+  vec3 bitN;
+  float bitBlack;
+  bool bitHit = false;
+  if (gE > 0.002) hitBits(pos, r, tRefl, bitN, bitBlack, bitHit);
+  vec3 refl = bitHit ? shadeBit(bitN, r, bitBlack) : hit.x > 0.0 ? shadeObject(pos + r * hit.x, r, hit.y) : env(r);
+  refl = mix(refl, gAccent * 1.5, clamp(glow, 0.0, 1.0) * 0.5);
   float F = 0.05 + 0.95 * pow(1.0 - clamp(-rd.y, 0.0, 1.0), 5.0);
   col = mix(col, refl, clamp(F * 1.4, 0.0, 1.0) * FLOOR_REFLECT);
 
@@ -372,28 +598,43 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   setupObject();
   vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
 
-  // カメラ: わずかに左右へ揺れる
-  float sway = CAM_SWAY * sin(iMotionTime * CAM_SWAY_SPEED);
-  vec3 ro = vec3(CAM_DISTANCE * sin(sway), CAM_HEIGHT, CAM_DISTANCE * cos(sway));
+  // カメラ: 平時はわずかに左右へ揺れるだけ。Energy を上げると、本体のまわりを回り込みながら
+  // 寄って低くなり、画角が広がって煽りになる。拍ごとに左右交互にわずかに傾く
+  uv *= rot(ENERGY_CAM_KICK * gE2 * gPulse * (mod(floor(iBeat), 2.0) < 1.0 ? 1.0 : -1.0));
+  float sway = CAM_SWAY * sin(iMotionTime * CAM_SWAY_SPEED) + iOrbitAngle;
+  float camDist = CAM_DISTANCE * (1.0 - ENERGY_CAM_PUSH * gE2);
+  vec3 ro = vec3(camDist * sin(sway), CAM_HEIGHT - ENERGY_CAM_DROP * gE2, camDist * cos(sway));
   vec3 ta = vec3(0.0, CAM_TARGET_Y, 0.0);
   vec3 ww = normalize(ta - ro);
   vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
   vec3 vv = cross(uu, ww);
-  vec3 rd = normalize(uv.x * uu + uv.y * vv + CAM_FOCAL * ww);
+  vec3 rd = normalize(uv.x * uu + uv.y * vv + (CAM_FOCAL - ENERGY_CAM_WIDEN * gE2) * ww);
 
   float glow;
   vec2 hit = marchObject(ro, rd, glow);
   vec3 col;
-  if (hit.x > 0.0) {
+  float tFloor = rd.y < 0.0 ? (FLOOR_Y - ro.y) / rd.y : 1e9;
+  float tNear = min(hit.x > 0.0 ? hit.x : 1e9, tFloor);
+  vec3 bitN;
+  float bitBlack;
+  bool bitHit = false;
+  if (gE > 0.002) hitBits(ro, rd, tNear, bitN, bitBlack, bitHit);
+  if (bitHit) {
+    col = shadeBit(bitN, rd, bitBlack);
+  } else if (hit.x > 0.0 && hit.x < tFloor) {
     col = shadeObject(ro + rd * hit.x, rd, hit.y);
   } else if (rd.y < 0.0) {
-    float t = (FLOOR_Y - ro.y) / rd.y;
+    float t = tFloor;
     col = shadeFloor(ro + rd * t, rd, t);
   } else {
     col = env(rd);
   }
+  // オーラ。本体や群れの手前には薄く、背景には濃く乗る (白地なので足さずに色を寄せる)
+  float aura = auraAmount(ro, rd) * (bitHit || (hit.x > 0.0 && hit.x < tFloor) ? 0.12 : 1.0);
+  col = mix(col, mix(gAccent, vec3(1.0, 0.96, 0.8), aura * aura), aura * AURA_STRENGTH);
+
   // 発光輪のにじみ。白地では足しても見えないので、色を寄せる
-  col = mix(col, ACCENT * 1.4 + 0.3, clamp(glow, 0.0, 1.0) * 0.55);
+  col = mix(col, gAccent * 1.4 + 0.3, clamp(glow, 0.0, 1.0) * 0.55);
 
   // 白を保ったまま 0.8 より上だけを滑らかに圧縮する
   vec3 over = max(col - 0.8, 0.0);
