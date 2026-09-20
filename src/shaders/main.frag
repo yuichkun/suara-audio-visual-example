@@ -3,7 +3,8 @@
 //   空間   : 巨大な白いドーム (rib と天井の光パネル)。床は光沢のある白で、地平に向かって霞む
 //   object : 白いセラミックの殻 + 黒い核 + 発光する輪。iMotion (= 再生中かどうか) で姿が変わる
 //            停止中: 閉じた卵。パッドのすぐ上で直立して静止し、合わせ目から光が呼吸するように漏れる
-//            再生中: 浮き上がって殻が赤道で割れ、傾いた軸でゆっくり回る
+//            再生中: 浮き上がって開き、傾いた軸でゆっくり回る。形は iShapeWeights で 3 つの間を morph する
+//                    割れた球 / 結晶 (縦長の八面体が割れる) / 輪 (核のまわりを 3 本の帯が回る)
 
 //
 // 調整用の値 (色・速さ・大きさ・カメラ ...) は src/tuning.ts にある。大文字の定数のうち、
@@ -12,7 +13,8 @@
 #define TAU 6.28318530718
 
 // object を包む球。これの外では raymarch しない
-const float BOUND_R = 1.075 * max(EGG_STRETCH, 1.0) * (1.0 + PULSE_SCALE);
+const float BOUND_R = (1.0 + PULSE_SCALE) *
+  max(max(1.075 * max(EGG_STRETCH, 1.0), CRYSTAL_SIZE * CRYSTAL_STRETCH + 0.02), RING_RADIUS + 0.06);
 const vec3 KEY_DIR = normalize(vec3(-0.45, 0.85, 0.4));
 const float WALL_TOP = radians(WALL_TOP_DEG);
 
@@ -30,64 +32,130 @@ float smax(float a, float b, float k) {
   return mix(b, a, h) + k * h * (1.0 - h);
 }
 
-// 0 = 停止中 (閉じた卵) 〜 1 = 再生中 (開いた球)
-float openAmount() {
-  return smoothstep(0.0, 1.0, iMotion);
-}
+// --- 1 フレームの間は変わらない値。mainImage の頭で setupObject() が埋める ---
+float gOpen;      // 0 = 停止中 (閉じた卵) 〜 1 = 再生中 (開いた形)
+float gPulse;     // 4 つ打ちの脈打ち 0..1。開いている間だけ効く
+float gScale;     // 脈打ちによる膨らみ
+float gRingPower; // 発光輪の強さ
+float gCoreR;     // 核の半径 (結晶の時は中に収まるよう少し小さくなる)
+vec3 gCenter;
+vec3 gShape;      // 形の重み [割れた球, 結晶, 輪]。停止中は必ず球 (= 卵) に戻る
+mat2 gTilt, gSpin, gBandA, gBandB, gBandC, gBandYaw;
 
-// 4 つ打ちの脈打ち 0..1。開いている (= 再生中) 間だけ効く
-float pulseAmount() {
-  return iPulse * openAmount();
-}
+const float SHELL_T = 0.032; // 殻の厚みの半分
 
-// 発光輪の強さ。停止中は待機ランプのようにゆっくり呼吸し、再生中は拍で明るくなる
-float ringPower() {
+void setupObject() {
+  gOpen = smoothstep(0.0, 1.0, iMotion);
+  gPulse = iPulse * gOpen;
+  gScale = 1.0 + PULSE_SCALE * gPulse;
+  // 停止中は待機ランプのようにゆっくり呼吸し、再生中は拍で明るくなる
   float breath = BREATH_LEVEL + BREATH_DEPTH * sin(iTime * BREATH_SPEED);
-  return mix(breath, 1.0 + PULSE_GLOW * pulseAmount(), openAmount());
-}
+  gRingPower = mix(breath, 1.0 + PULSE_GLOW * gPulse, gOpen);
+  gCenter = vec3(0.0, mix(REST_Y, HOVER_Y, gOpen) + BOB_AMOUNT * sin(iMotionTime * BOB_SPEED) * gOpen, 0.0);
+  gShape = mix(vec3(1.0, 0.0, 0.0), iShapeWeights, gOpen);
 
-vec3 objectCenter() {
-  float open = openAmount();
-  return vec3(0.0, mix(REST_Y, 0.0, open) + BOB_AMOUNT * sin(iMotionTime * BOB_SPEED) * open, 0.0);
+  // 結晶の内側に核が収まる大きさ (面までの距離 - 殻の厚み - 余白)
+  float crystalInner = CRYSTAL_SIZE / sqrt(2.0 + 1.0 / (CRYSTAL_STRETCH * CRYSTAL_STRETCH)) - 2.0 * SHELL_T - 0.05;
+  gCoreR = mix(CORE_RADIUS, min(CORE_RADIUS, crystalInner), gShape.y);
+
+  gTilt = rot(TILT * gOpen);
+  gSpin = rot(iMotionTime * SPIN_SPEED);
+  float t = iMotionTime * RING_SPEED;
+  gBandA = rot(t);
+  gBandB = rot(t * 0.73 + 1.0);
+  gBandC = rot(-t * 0.55 + 2.2);
+  gBandYaw = rot(1.05);
 }
 
 // world → object 空間。再生中は傾いた軸のまわりを回る。停止中は上半分が伸びて卵形になる
 vec3 toObject(vec3 p) {
-  float open = openAmount();
-  p -= objectCenter();
-  p.xy *= rot(TILT * open);
-  p.xz *= rot(iMotionTime * SPIN_SPEED);
-  if (p.y > 0.0) p.y /= mix(EGG_STRETCH, 1.0, open);
+  p -= gCenter;
+  p.xy *= gTilt;
+  p.xz *= gSpin;
+  if (p.y > 0.0) p.y /= mix(EGG_STRETCH, 1.0, gOpen);
   // 脈打ち: 全体がわずかに膨らむ (距離の補正は mapObject 側)
-  return p / (1.0 + PULSE_SCALE * pulseAmount());
+  return p / gScale;
 }
 
 float sdRing(vec3 q) {
-  return length(vec2(length(q.xz) - (CORE_RADIUS + 0.01), q.y)) - 0.012;
+  return length(vec2(length(q.xz) - (gCoreR + 0.01), q.y)) - 0.012;
+}
+
+float sdOctahedron(vec3 p, float s) {
+  p = abs(p);
+  float m = p.x + p.y + p.z - s;
+  vec3 q;
+  if (3.0 * p.x < m) q = p.xyz;
+  else if (3.0 * p.y < m) q = p.yzx;
+  else if (3.0 * p.z < m) q = p.zxy;
+  else return m * 0.57735027;
+  float k = clamp(0.5 * (q.z - q.y + s), 0.0, s);
+  return length(vec3(q.x, q.y - s + k, q.z - k));
+}
+
+// 殻の「元の形」(中身の詰まった立体)。球と結晶 (縦長の八面体) の間を重みで混ぜる
+float baseSolid(vec3 q) {
+  float d = (1.0 - gShape.y) * (length(q) - 1.0);
+  if (gShape.y > 0.001) {
+    vec3 c = vec3(q.x, q.y / CRYSTAL_STRETCH, q.z);
+    d += gShape.y * (sdOctahedron(c, CRYSTAL_SIZE - 0.02) - 0.02);
+  }
+  return d;
+}
+
+// 元の形を radius 倍して中空にし、region (負の側を残す) で切り抜いたもの
+float cutShell(vec3 q, float radius, float region, float k) {
+  float hollow = abs(baseSolid(q / radius) * radius + SHELL_T) - SHELL_T;
+  return smax(hollow, region, k);
+}
+
+// 殻。3 つの形はどれも「中空の立体をどこで切り抜くか」の違いとして作ってあるので、
+// 重みを動かすと途中で消えたりせず、表面の上で形が連続的に移っていく。
+//   割れた球 / 結晶 : 赤道の帯を抜いて上下 2 つに割る
+//   輪             : 逆に、3 つの傾いた赤道の帯だけを残す (帯ごとに半径が違う)
+float sdShell(vec3 q) {
+  float k = mix(0.008, 0.025, gOpen);
+  float gap = mix(0.003, GAP_OPEN + PULSE_GAP * gPulse, gOpen);
+  float split = gap - abs(q.y);
+  float w = gShape.z;
+
+  float d;
+  if (w < 0.001) {
+    d = cutShell(q, 1.0, split, k);
+  } else {
+    vec3 a = q;
+    a.yz *= gBandA;
+    vec3 b = q;
+    b.xy *= gBandB;
+    vec3 c = q;
+    c.xz *= gBandYaw;
+    c.yz *= gBandC;
+    d = cutShell(q, mix(1.0, RING_RADIUS, w), mix(split, abs(a.y) - RING_WIDTH, w), k);
+    d = min(d, cutShell(q, mix(1.0, RING_RADIUS - RING_STEP, w), mix(split, abs(b.y) - RING_WIDTH, w), k));
+    d = min(d, cutShell(q, mix(1.0, RING_RADIUS - 2.0 * RING_STEP, w), mix(split, abs(c.y) - RING_WIDTH, w), k));
+  }
+
+  // パネルの継ぎ目 (球の時だけ。開ききってから浮かぶ)
+  float seamW = mix(-0.01, 0.007, smoothstep(0.35, 1.0, gOpen) * smoothstep(0.6, 1.0, gShape.x));
+  if (seamW > -0.009) {
+    float ang = mod(atan(q.z, q.x) + TAU / 12.0, TAU / 6.0) - TAU / 12.0;
+    float seamLon = abs(sin(ang)) * length(q.xz) - seamW;
+    float seamLat = abs(abs(q.y) - 0.58) - seamW;
+    d = max(d, -min(seamLon, seamLat));
+  }
+  return d;
 }
 
 // x = 距離, y = material
 vec2 mapObject(vec3 p) {
   vec3 q = toObject(p);
-  float r = length(q);
-
-  // 殻: 中空の球を赤道で割り、パネルの継ぎ目を細く切る。閉じている間は髪の毛ほどの合わせ目だけ
-  float open = openAmount();
-  float shell = abs(r - 1.0) - 0.032;
-  shell = smax(shell, -(abs(q.y) - mix(0.003, GAP_OPEN + PULSE_GAP * pulseAmount(), open)), mix(0.008, 0.025, open));
-  float seamW = mix(-0.01, 0.007, smoothstep(0.35, 1.0, open));
-  float a = mod(atan(q.z, q.x) + TAU / 12.0, TAU / 6.0) - TAU / 12.0;
-  float seamLon = abs(sin(a)) * length(q.xz) - seamW;
-  float seamLat = abs(abs(q.y) - 0.58) - seamW;
-  shell = max(shell, -min(seamLon, seamLat));
-
-  float core = r - CORE_RADIUS;
+  float core = length(q) - gCoreR;
   float ring = sdRing(q);
 
-  vec2 res = vec2(shell, MAT_SHELL);
+  vec2 res = vec2(sdShell(q), MAT_SHELL);
   if (core < res.x) res = vec2(core, MAT_CORE);
   if (ring < res.x) res = vec2(ring, MAT_RING);
-  res.x *= 1.0 + PULSE_SCALE * pulseAmount();
+  res.x *= gScale;
   return res;
 }
 
@@ -100,7 +168,7 @@ vec3 calcNormal(vec3 p) {
 
 // bounding sphere との交差区間。x > y なら当たらない
 vec2 boundHit(vec3 ro, vec3 rd) {
-  vec3 oc = ro - objectCenter();
+  vec3 oc = ro - gCenter;
   float b = dot(oc, rd);
   float h = b * b - (dot(oc, oc) - BOUND_R * BOUND_R);
   if (h < 0.0) return vec2(1.0, -1.0);
@@ -118,7 +186,7 @@ vec2 marchObject(vec3 ro, vec3 rd, out float glow) {
     vec3 p = ro + rd * t;
     vec2 d = mapObject(p);
     float dr = sdRing(toObject(p));
-    glow += ringPower() * 0.0012 / (0.003 + dr * dr * 140.0);
+    glow += gRingPower * 0.0012 / (0.003 + dr * dr * 140.0);
     if (d.x < 0.0006 * t) return vec2(t, d.y);
     t += d.x;
     if (t > tb.y) break;
@@ -195,7 +263,7 @@ vec3 env(vec3 rd) {
 }
 
 vec3 shadeObject(vec3 pos, vec3 rd, float mat) {
-  if (mat == MAT_RING) return (ACCENT * 3.0 + 1.0) * ringPower();
+  if (mat == MAT_RING) return (ACCENT * 3.0 + 1.0) * gRingPower;
 
   vec3 n = calcNormal(pos);
   vec3 r = reflect(rd, n);
@@ -207,9 +275,9 @@ vec3 shadeObject(vec3 pos, vec3 rd, float mat) {
   // 発光輪からの色つきの光
   vec3 q = toObject(pos);
   float dr = sdRing(q);
-  vec3 ringLight = ACCENT * ringPower() * 0.45 / (1.0 + 90.0 * dr * dr);
+  vec3 ringLight = ACCENT * gRingPower * 0.45 / (1.0 + 90.0 * dr * dr);
   // 閉じている間、合わせ目から漏れる光
-  ringLight += ACCENT * ringPower() * (1.0 - openAmount()) * SEAM_LEAK * exp(-abs(q.y) * 38.0);
+  ringLight += ACCENT * gRingPower * (1.0 - gOpen) * SEAM_LEAK * exp(-abs(q.y) * 38.0);
 
   if (mat == MAT_CORE) {
     vec3 f0 = vec3(0.05, 0.055, 0.07);
@@ -238,7 +306,7 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   vec3 col = vec3(0.9, 0.91, 0.925);
 
   // object が落とす影: 天井全体からの柔らかい遮蔽 + key light の影
-  vec3 c = objectCenter();
+  vec3 c = gCenter;
   vec3 di = c - pos;
   float l = length(di);
   float occ = clamp(di.y / l, 0.0, 1.0) * (1.0 / (l * l));
@@ -264,7 +332,7 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   col = mix(col, vec3(0.35, 0.38, 0.42), clamp(rings + ticks, 0.0, 1.0) * 0.55 * fade);
   // パッドの一部だけ accent 色の弧
   float arc = aaLine(rr - PAD_RADIUS, 0.012, fr) * smoothstep(0.75, 0.8, sin(az * 1.0));
-  col = mix(col, ACCENT * 0.9, arc * 0.9 * ringPower());
+  col = mix(col, ACCENT * 0.9, arc * 0.9 * gRingPower);
 
   // 光沢: object と空間が映り込む
   vec3 n = vec3(0.0, 1.0, 0.0);
@@ -282,6 +350,7 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  setupObject();
   vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
 
   // カメラ: わずかに左右へ揺れる

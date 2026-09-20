@@ -2,7 +2,7 @@ import { useMidi, useTransport } from '@suara/sdk';
 import { createAudioGraph } from './kit/audio-graph';
 import { createGlslRenderer } from './kit/glsl/renderer';
 import { sceneForValue, type Scene } from './kit/glsl/scenes';
-import { createSignals, pulse } from './kit/signals';
+import { createBlendWeights, createSignals, pulse } from './kit/signals';
 import { params } from './params';
 import { SCENES } from './scenes';
 import { tuning } from './tuning';
@@ -19,6 +19,7 @@ async function main(): Promise<void> {
   await midi.whenReady();
   const graph = await createAudioGraph({ dsp: { url: dspUrl, processorName: 'suara-dsp' } });
   const signals = createSignals({ transport, midi, graph, params, motionEase: tuning.motion });
+  const shapeBlend = createBlendWeights(3, tuning.shape.morphSeconds);
 
   // --- 描画 ---
   const renderer = createGlslRenderer(canvas, uniforms, {
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
     const frame = signals.update(nowMs) as AppFrame;
     const { beat, playing } = frame.transport;
     frame.pulse = playing ? pulse(beat, tune.pulse.cycleBeats, tune.pulse.sharpness) : 0;
+    frame.shapeWeights = shapeBlend.update(frame.params.shape, frame.dt);
     showScene(sceneForValue(scenes, frame.params.scene));
     renderer.draw(frame);
     requestAnimationFrame(loop);

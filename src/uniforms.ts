@@ -8,10 +8,13 @@ import { params, type ParamKey } from './params';
 export type AppFrame = Frame<ParamKey> & {
   /** 4 つ打ちの脈打ち 0..1 (tuning.pulse)。 */
   pulse: number;
+  /** 再生中の形それぞれの重み [割れた球, 結晶, 輪]。合計 1 (tuning.shape)。 */
+  shapeWeights: Float32Array;
 };
 
 export const uniforms: readonly UniformSpec<AppFrame>[] = [
   ...standardUniforms,
   ...paramUniforms(params),
   { name: 'iPulse', type: 'float', get: (f) => f.pulse },
+  { name: 'iShapeWeights', type: 'vec3', get: (f) => f.shapeWeights },
 ];

@@ -3,7 +3,7 @@
 //   shader  → src/shaders/*.frag に同名の const として埋め込まれる (shader 側には書かない)。
 //             number = float、[r, g, b] = vec3。保存すると reload なしで反映される
 //   pulse   → 脈打ちの周期と鋭さ。保存すると reload なしで反映される
-//   motion  → 「動く / 止まる」の切り替わりの速さ。反映には reload が要る
+//   motion / shape → 切り替わりの速さ。反映には reload が要る
 
 export const tuning = {
   motion: {
@@ -11,6 +11,12 @@ export const tuning = {
     attack: 0.5,
     /** 止めてから閉じるまでの時定数 (秒)。 */
     release: 0.9,
+  },
+
+  // 再生中の形の切り替え (automation の Shape: 0 = 割れた球 / 1 = 結晶 / 2 = 輪)
+  shape: {
+    /** 切り替えてから morph がほぼ終わるまでの秒数。 */
+    morphSeconds: 1.6,
   },
 
   // 4 つ打ちの脈打ち。位置は transport の拍。再生中は常に脈打つ
@@ -37,11 +43,26 @@ export const tuning = {
     TILT: 0.42,
     /** 殻の割れ目の半幅。 */
     GAP_OPEN: 0.14,
+    /** 再生中に浮く高さ (停止中は REST_Y)。 */
+    HOVER_Y: 0.12,
     /** 上下の揺れの幅と速さ。 */
     BOB_AMOUNT: 0.05,
     BOB_SPEED: 0.6,
     /** 黒い核の半径 (殻の内側は 0.97)。発光輪は核の表面に乗る。 */
     CORE_RADIUS: 0.74,
+
+    // --- object: 形 1 = 結晶 (縦長の八面体が赤道で割れる) ---
+    /** 頂点までの距離 (横方向) と、縦の伸び。 */
+    CRYSTAL_SIZE: 1.3,
+    CRYSTAL_STRETCH: 1.35,
+
+    // --- object: 形 2 = 輪 (核のまわりを 3 本の帯が別々の軸で回る) ---
+    /** いちばん外の輪の半径。内側の 2 本はここから RING_STEP ずつ小さくなる。 */
+    RING_RADIUS: 1.22,
+    RING_STEP: 0.15,
+    /** 帯の幅 (半分) と、回る速さ (rad/秒)。 */
+    RING_WIDTH: 0.06,
+    RING_SPEED: 0.5,
 
     // --- object: 脈打ち (pulse が 1 の瞬間にどれだけ変わるか) ---
     /** 大きさ (0.035 = 3.5% 膨らむ)。 */
