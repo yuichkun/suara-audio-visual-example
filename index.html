@@ -2,23 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>SuaraVisual — Suara AV</title>
+  <title>SuaraVisual</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #0a0a0c; color: #e8e8ec; font: 12px/1.4 ui-monospace, monospace; overflow: hidden; }
+    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
     #stage { display: block; width: 100vw; height: 100vh; }
-    #hud { position: fixed; left: 8px; bottom: 8px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: calc(100% - 16px); }
-    #hud button, #hud label { background: #1a1a22; color: #e8e8ec; border: 1px solid #333; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
-    #hud input[type="number"] { width: 56px; background: #1a1a22; color: #e8e8ec; border: 1px solid #333; border-radius: 4px; padding: 4px; }
-    #error { position: fixed; top: 8px; left: 8px; right: 8px; z-index: 3; color: #ff6b6b; white-space: pre-wrap; pointer-events: none; }
-    #keys { display: flex; gap: 2px; }
-    #keys button { min-width: 28px; }
-    .vst-hidden { display: none !important; }
   </style>
 </head>
 <body>
   <canvas id="stage"></canvas>
-  <div id="error"></div>
-  <div id="hud"></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

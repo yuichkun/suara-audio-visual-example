@@ -1,55 +1,54 @@
-import { createWebGlRenderer } from './render/webgl';
-import { createUniformState } from './uniforms/layout';
-import { SCENES, sceneSource } from './scenes';
+// e2e (Playwright) 用: renderer を素の状態で叩く窓口。plugin 本体には含まれない。
+import { createGlslRenderer, type CompileResult, type UniformSpec } from './kit/glsl/renderer';
+import { standardUniforms } from './kit/glsl/standard-uniforms';
+import { SCENES } from './scenes';
+import { uniforms } from './uniforms';
 import probeSrc from '../tests/e2e/probe.frag?raw';
 
-const canvasEl = document.getElementById('c');
-if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error('#c canvas required');
-const canvas = canvasEl;
+const canvas = document.getElementById('c');
+if (!(canvas instanceof HTMLCanvasElement)) throw new Error('#c canvas required');
 
-const maybe = createWebGlRenderer(canvas);
-if (!maybe) throw new Error('no webgl2');
-const renderer = maybe;
+interface Probe {
+  a: number;
+  b: number;
+  tex: number[];
+}
+const probeUniforms: UniformSpec<Probe>[] = [
+  { name: 'uA', type: 'float', get: (p) => p.a },
+  { name: 'uB', type: 'vec2', get: (p) => [p.b, 0] },
+  { name: 'uTex', type: 'texture', get: (p) => new Float32Array(p.tex) },
+];
 
-const state = createUniformState();
-
-export type HarnessApi = {
-  compileScenes: () => Array<{ index: number; ok: boolean; log?: string }>;
-  compileSource: (src: string) => { ok: true } | { ok: false; log: string };
-  drawProbe: (partial: Partial<typeof state>) => number[];
-  setScene: (index: number) => void;
-};
+export interface HarnessApi {
+  compileScenes(): Array<{ name: string } & CompileResult>;
+  compileSource(src: string): CompileResult;
+  drawProbe(probe: Probe): number[];
+  uniformNames(): string[];
+}
 
 const api: HarnessApi = {
   compileScenes() {
-    return SCENES.map((src, index) => {
-      const r = renderer.compileOnly(src);
-      return r.ok ? { index, ok: true } : { index, ok: false, log: r.log };
-    });
+    const r = createGlslRenderer(document.createElement('canvas'), uniforms);
+    if (!r) throw new Error('no webgl2');
+    return SCENES.map((s) => ({ name: s.name, ...r.compileOnly(s.source) }));
   },
-  compileSource(src: string) {
-    return renderer.compileOnly(src);
+  compileSource(src) {
+    const r = createGlslRenderer(document.createElement('canvas'), standardUniforms);
+    if (!r) throw new Error('no webgl2');
+    return r.compileOnly(src);
   },
-  drawProbe(partial) {
-    Object.assign(state, partial);
-    renderer.setFragmentSource(probeSrc);
-    renderer.setUniforms(state);
-    renderer.resize(64, 64);
-    canvas.width = 64;
-    canvas.height = 64;
-    state.iResolutionX = 64;
-    state.iResolutionY = 64;
+  drawProbe(probe) {
+    const r = createGlslRenderer(canvas, probeUniforms, { preserveDrawingBuffer: true });
+    if (!r) throw new Error('no webgl2');
+    if (!r.setFragment(probeSrc)) throw new Error('probe.frag failed to compile');
+    r.draw(probe);
     const gl = canvas.getContext('webgl2');
-    if (!gl) return [0, 0, 0, 0];
-    gl.viewport(0, 0, 64, 64);
-    renderer.draw();
+    if (!gl) throw new Error('no webgl2');
     const px = new Uint8Array(4);
-    gl.readPixels(32, 32, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-    return [px[0] ?? 0, px[1] ?? 0, px[2] ?? 0, px[3] ?? 0];
+    gl.readPixels(canvas.width >> 1, canvas.height >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return [...px];
   },
-  setScene(index: number) {
-    renderer.setFragmentSource(sceneSource(index));
-  },
+  uniformNames: () => uniforms.map((u) => u.name),
 };
 
 (window as unknown as { __suaraHarness: HarnessApi }).__suaraHarness = api;
