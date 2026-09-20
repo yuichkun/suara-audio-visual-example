@@ -48,8 +48,8 @@ suara register dev
 | 画面 / 時間 | `iResolution` `iTime` `iTimeDelta` `iFrame` |
 | transport | `iSongTime` `iBeat` `iBar` `iBeatPhase` `iBarPhase` `iTempo` `iPlaying` |
 | motion | `iMotion` `iMotionTime` |
-| audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iSpectrum` `iWaveform` |
-| audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScSpectrum` |
+| audio (main) | `iLevel` `iRms` `iPeak` `iLow` `iMid` `iHigh` `iOnset` `iLowOnset` `iSpectrum` `iWaveform` |
+| audio (sidechain) | `iScLevel` `iScLow` `iScMid` `iScHigh` `iScOnset` `iScLowOnset` `iScSpectrum` |
 | MIDI | `iNoteCount` `iLastNote` `iLastVelocity` `iNoteAge` `iMidiLevel` `iNotes` |
 | param | `pScene` `pIntensity` `pHue` `pSpeed` `pAudioAmount` |
 

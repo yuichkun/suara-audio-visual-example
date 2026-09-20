@@ -13,6 +13,9 @@ export type { MidiFrame, MidiSignal } from './midi';
 export { analyseTimeDomain, bandAverage, createAudioAnalysis } from './audio';
 export type { AnalyserLike, AudioAnalysis, AudioAnalysisOptions, AudioFrame } from './audio';
 
+export { createGatedPulse } from './pulse';
+export type { GatedPulse, GatedPulseFrame, GatedPulseOptions } from './pulse';
+
 export { createMotion } from './motion';
 export type { Motion, MotionFrame } from './motion';
 

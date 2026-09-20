@@ -18,8 +18,10 @@ export interface AudioFrame {
   low: number;
   mid: number;
   high: number;
-  /** 立ち上がりで 1、以後減衰 (0..1)。 */
+  /** 立ち上がりで 1、以後減衰 (0..1)。全帯域の音量で見る。 */
   onset: number;
+  /** onset の低域版 (low の立ち上がり)。mix の中からキックを拾いたい時に使う。 */
+  lowOnset: number;
   /** 周波数ビン (0..1、低 → 高、線形周波数)。 */
   spectrum: Float32Array<ArrayBuffer>;
   /** 波形 (-1..1)。 */
@@ -97,6 +99,7 @@ export function createAudioAnalysis(
   const opts: AudioAnalysisOptions = { ...DEFAULTS, ...options };
   const bins = new Uint8Array(analyser.frequencyBinCount);
   const onset = createOnsetDetector(opts.onset);
+  const lowOnset = createOnsetDetector(opts.onset);
   const frame: AudioFrame = {
     rms: 0,
     peak: 0,
@@ -105,6 +108,7 @@ export function createAudioAnalysis(
     mid: 0,
     high: 0,
     onset: 0,
+    lowOnset: 0,
     spectrum: new Float32Array(analyser.frequencyBinCount),
     waveform: new Float32Array(analyser.fftSize),
   };
@@ -129,6 +133,7 @@ export function createAudioAnalysis(
       frame.low = bandAverage(spectrum, binHz, 0, opts.lowMaxHz);
       frame.mid = bandAverage(spectrum, binHz, opts.lowMaxHz, opts.midMaxHz);
       frame.high = bandAverage(spectrum, binHz, opts.midMaxHz, nyquist);
+      frame.lowOnset = lowOnset.update(frame.low, dt);
       return frame;
     },
   };
