@@ -5,6 +5,7 @@ import { sceneForValue, type Scene } from './kit/glsl/scenes';
 import { createSignals } from './kit/signals';
 import { params } from './params';
 import { SCENES } from './scenes';
+import { tuning } from './tuning';
 import { uniforms } from './uniforms';
 import dspUrl from './worklets/dsp-worklet.ts?worker&url';
 
@@ -17,10 +18,11 @@ async function main(): Promise<void> {
   const midi = useMidi();
   await midi.whenReady();
   const graph = await createAudioGraph({ dsp: { url: dspUrl, processorName: 'suara-dsp' } });
-  const signals = createSignals({ transport, midi, graph, params });
+  const signals = createSignals({ transport, midi, graph, params, motionEase: tuning.motion });
 
   // --- 描画 ---
   const renderer = createGlslRenderer(canvas, uniforms, {
+    constants: tuning.shader,
     onError: (message) => {
       if (message) console.error(message);
     },
@@ -34,8 +36,13 @@ async function main(): Promise<void> {
     current = scene;
     renderer.setFragment(scene.source);
   };
-  // .frag を保存したら reload なしで差し替える
+  // .frag / tuning.ts を保存したら reload なしで差し替える
   if (import.meta.hot) {
+    import.meta.hot.accept('./tuning', (mod) => {
+      if (!mod) return;
+      renderer.setConstants((mod['tuning'] as typeof tuning).shader);
+      current = null;
+    });
     import.meta.hot.accept('./scenes', (mod) => {
       if (!mod) return;
       scenes = mod['SCENES'] as readonly Scene[];

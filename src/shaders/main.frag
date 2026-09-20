@@ -5,15 +5,16 @@
 //            停止中: 閉じた卵。パッドのすぐ上で直立して静止し、合わせ目から光が呼吸するように漏れる
 //            再生中: 浮き上がって殻が赤道で割れ、傾いた軸でゆっくり回る
 
+//
+// 調整用の値 (色・速さ・大きさ・カメラ ...) は src/tuning.ts にある。大文字の定数のうち、
+// この file で宣言していないものは全部そこから埋め込まれる。
+
 #define TAU 6.28318530718
 
-const float FLOOR_Y = -1.55;
-const float BOUND_R = 1.42; // object を包む球。これの外では raymarch しない
+// object を包む球。これの外では raymarch しない
+const float BOUND_R = 1.075 * max(EGG_STRETCH, 1.0);
 const vec3 KEY_DIR = normalize(vec3(-0.45, 0.85, 0.4));
-const vec3 HORIZON = vec3(0.93, 0.94, 0.95);
-const vec3 ZENITH = vec3(0.74, 0.79, 0.86);
-const vec3 ACCENT = vec3(0.25, 0.85, 1.0);
-const float WALL_TOP = radians(6.5);
+const float WALL_TOP = radians(WALL_TOP_DEG);
 
 const float MAT_SHELL = 1.0;
 const float MAT_CORE = 2.0;
@@ -36,26 +37,26 @@ float openAmount() {
 
 // 発光輪の強さ。停止中は待機ランプのようにゆっくり呼吸する
 float ringPower() {
-  return mix(0.4 + 0.3 * sin(iTime * 1.3), 1.0, openAmount());
+  return mix(BREATH_LEVEL + BREATH_DEPTH * sin(iTime * BREATH_SPEED), 1.0, openAmount());
 }
 
 vec3 objectCenter() {
   float open = openAmount();
-  return vec3(0.0, mix(-0.3, 0.0, open) + 0.05 * sin(iMotionTime * 0.6) * open, 0.0);
+  return vec3(0.0, mix(REST_Y, 0.0, open) + BOB_AMOUNT * sin(iMotionTime * BOB_SPEED) * open, 0.0);
 }
 
 // world → object 空間。再生中は傾いた軸のまわりを回る。停止中は上半分が伸びて卵形になる
 vec3 toObject(vec3 p) {
   float open = openAmount();
   p -= objectCenter();
-  p.xy *= rot(0.42 * open);
-  p.xz *= rot(iMotionTime * 0.15);
-  if (p.y > 0.0) p.y /= mix(1.32, 1.0, open);
+  p.xy *= rot(TILT * open);
+  p.xz *= rot(iMotionTime * SPIN_SPEED);
+  if (p.y > 0.0) p.y /= mix(EGG_STRETCH, 1.0, open);
   return p;
 }
 
 float sdRing(vec3 q) {
-  return length(vec2(length(q.xz) - 0.75, q.y)) - 0.012;
+  return length(vec2(length(q.xz) - (CORE_RADIUS + 0.01), q.y)) - 0.012;
 }
 
 // x = 距離, y = material
@@ -66,14 +67,14 @@ vec2 mapObject(vec3 p) {
   // 殻: 中空の球を赤道で割り、パネルの継ぎ目を細く切る。閉じている間は髪の毛ほどの合わせ目だけ
   float open = openAmount();
   float shell = abs(r - 1.0) - 0.032;
-  shell = smax(shell, -(abs(q.y) - mix(0.003, 0.14, open)), mix(0.008, 0.025, open));
+  shell = smax(shell, -(abs(q.y) - mix(0.003, GAP_OPEN, open)), mix(0.008, 0.025, open));
   float seamW = mix(-0.01, 0.007, smoothstep(0.35, 1.0, open));
   float a = mod(atan(q.z, q.x) + TAU / 12.0, TAU / 6.0) - TAU / 12.0;
   float seamLon = abs(sin(a)) * length(q.xz) - seamW;
   float seamLat = abs(abs(q.y) - 0.58) - seamW;
   shell = max(shell, -min(seamLon, seamLat));
 
-  float core = r - 0.74;
+  float core = r - CORE_RADIUS;
   float ring = sdRing(q);
 
   vec2 res = vec2(shell, MAT_SHELL);
@@ -154,7 +155,7 @@ vec3 env(vec3 rd) {
   // 遠くの壁: 縦長の光のスリットが並ぶ円形ホール。足元は霞んで床に溶ける
   if (el < WALL_TOP) {
     float h = el / WALL_TOP;
-    float sx = abs(fract(az / TAU * 60.0) - 0.5);
+    float sx = abs(fract(az / TAU * WALL_SLITS) - 0.5);
     float slit = smoothstep(0.1, 0.07, sx) * smoothstep(0.14, 0.2, h) * smoothstep(0.9, 0.84, h);
     float bloom = smoothstep(0.4, 0.0, sx) * smoothstep(0.0, 0.3, h) * smoothstep(1.0, 0.75, h);
     vec3 wall = vec3(0.78, 0.8, 0.84) + vec3(0.7) * slit + vec3(0.1) * bloom;
@@ -168,7 +169,7 @@ vec3 env(vec3 rd) {
   vec3 col = mix(HORIZON * 0.97, ZENITH, smoothstep(WALL_TOP, 1.3, el));
 
   // rib (経線) と ring (緯線)。地平に近いほど霞んで消える
-  float u = az / TAU * 36.0;
+  float u = az / TAU * DOME_RIBS;
   float v = el / radians(9.0);
   float du = abs(fract(u) - 0.5);
   float dv = abs(fract(v) - 0.5);
@@ -200,7 +201,7 @@ vec3 shadeObject(vec3 pos, vec3 rd, float mat) {
   float dr = sdRing(q);
   vec3 ringLight = ACCENT * ringPower() * 0.45 / (1.0 + 90.0 * dr * dr);
   // 閉じている間、合わせ目から漏れる光
-  ringLight += ACCENT * ringPower() * (1.0 - openAmount()) * 1.2 * exp(-abs(q.y) * 38.0);
+  ringLight += ACCENT * ringPower() * (1.0 - openAmount()) * SEAM_LEAK * exp(-abs(q.y) * 38.0);
 
   if (mat == MAT_CORE) {
     vec3 f0 = vec3(0.05, 0.055, 0.07);
@@ -247,13 +248,14 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
 
   float rr = length(pos.xz - c.xz);
   float fr = fwidth(rr);
-  float rings = aaLine(rr - 1.6, 0.012, fr) + aaLine(rr - 1.78, 0.003, fr) + aaLine(rr - 3.1, 0.003, fr);
-  float az = atan(pos.z - c.z, pos.x - c.x) + iMotionTime * 0.05;
+  float rings = aaLine(rr - PAD_RADIUS, 0.012, fr) + aaLine(rr - (PAD_RADIUS + 0.18), 0.003, fr) +
+                aaLine(rr - PAD_RADIUS * 1.94, 0.003, fr);
+  float az = atan(pos.z - c.z, pos.x - c.x) + iMotionTime * PAD_SPIN_SPEED;
   float ticks = aaLine(fract(az / TAU * 72.0) - 0.5, 0.06, fwidth(az) * 72.0 / TAU) *
-                step(1.64, rr) * step(rr, 1.74);
+                step(PAD_RADIUS + 0.04, rr) * step(rr, PAD_RADIUS + 0.14);
   col = mix(col, vec3(0.35, 0.38, 0.42), clamp(rings + ticks, 0.0, 1.0) * 0.55 * fade);
   // パッドの一部だけ accent 色の弧
-  float arc = aaLine(rr - 1.6, 0.012, fr) * smoothstep(0.75, 0.8, sin(az * 1.0));
+  float arc = aaLine(rr - PAD_RADIUS, 0.012, fr) * smoothstep(0.75, 0.8, sin(az * 1.0));
   col = mix(col, ACCENT * 0.9, arc * 0.9 * ringPower());
 
   // 光沢: object と空間が映り込む
@@ -264,10 +266,10 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   vec3 refl = hit.x > 0.0 ? shadeObject(pos + r * hit.x, r, hit.y) : env(r);
   refl = mix(refl, ACCENT * 1.5, clamp(glow, 0.0, 1.0) * 0.5);
   float F = 0.05 + 0.95 * pow(1.0 - clamp(-rd.y, 0.0, 1.0), 5.0);
-  col = mix(col, refl, clamp(F * 1.4, 0.0, 1.0) * 0.6);
+  col = mix(col, refl, clamp(F * 1.4, 0.0, 1.0) * FLOOR_REFLECT);
 
   // 遠くは地平の色に溶ける
-  float fog = 1.0 - exp(-pow(t * 0.045, 2.0));
+  float fog = 1.0 - exp(-pow(t * FOG_DENSITY, 2.0));
   return mix(col, HORIZON, fog);
 }
 
@@ -275,13 +277,13 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
 
   // カメラ: わずかに左右へ揺れる
-  float sway = 0.18 * sin(iMotionTime * 0.08);
-  vec3 ro = vec3(8.0 * sin(sway), 0.35, 8.0 * cos(sway));
-  vec3 ta = vec3(0.0, -0.22, 0.0);
+  float sway = CAM_SWAY * sin(iMotionTime * CAM_SWAY_SPEED);
+  vec3 ro = vec3(CAM_DISTANCE * sin(sway), CAM_HEIGHT, CAM_DISTANCE * cos(sway));
+  vec3 ta = vec3(0.0, CAM_TARGET_Y, 0.0);
   vec3 ww = normalize(ta - ro);
   vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
   vec3 vv = cross(uu, ww);
-  vec3 rd = normalize(uv.x * uu + uv.y * vv + 1.9 * ww);
+  vec3 rd = normalize(uv.x * uu + uv.y * vv + CAM_FOCAL * ww);
 
   float glow;
   vec2 hit = marchObject(ro, rd, glow);
@@ -301,7 +303,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
   vec3 over = max(col - 0.8, 0.0);
   col = min(col, 0.8) + 0.2 * (1.0 - exp(-over / 0.2));
 
-  col *= 1.0 - 0.22 * dot(uv, uv);
+  col *= 1.0 - VIGNETTE * dot(uv, uv);
   col = pow(col, vec3(1.0 / 2.2));
   // 白のグラデーションの banding 防止
   float noise = fract(sin(dot(fragCoord + fract(iTime) * 61.0, vec2(12.9898, 78.233))) * 43758.5453);

@@ -2,6 +2,7 @@
 import { createGlslRenderer, type CompileResult, type UniformSpec } from './kit/glsl/renderer';
 import { standardUniforms } from './kit/glsl/standard-uniforms';
 import { SCENES } from './scenes';
+import { tuning } from './tuning';
 import { uniforms } from './uniforms';
 import probeSrc from '../tests/e2e/probe.frag?raw';
 
@@ -28,7 +29,9 @@ export interface HarnessApi {
 
 const api: HarnessApi = {
   compileScenes() {
-    const r = createGlslRenderer(document.createElement('canvas'), uniforms);
+    const r = createGlslRenderer(document.createElement('canvas'), uniforms, {
+      constants: tuning.shader,
+    });
     if (!r) throw new Error('no webgl2');
     return SCENES.map((s) => ({ name: s.name, ...r.compileOnly(s.source) }));
   },

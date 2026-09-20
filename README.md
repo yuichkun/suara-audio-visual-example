@@ -43,6 +43,7 @@ src/
   params.ts             automation param の宣言 (suara.json を title で引く)
   uniforms.ts           shader から見える uniform の表 (標準 + param + 自前)
   scenes.ts             shaders/*.frag を Scene 0, 1, 2... にする
+  tuning.ts             手で調整する値は全部ここ (色・速さ・大きさ・カメラ ...)。shader には const として埋め込まれる
   shaders/*.frag        shader
   worklets/             DSP (default は素通し)
   kit/                  ← demo と scaffold で共有する土台
