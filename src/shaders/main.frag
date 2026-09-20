@@ -1,6 +1,7 @@
 // 白い未来的な空間の中心に、SDF のオブジェクトが 1 つ浮いている。
 //
 //   空間   : 巨大な白いドーム (rib と天井の光パネル)。床は光沢のある白で、地平に向かって霞む
+//            sidechain の低音に反応するのは空間の側: 壁のスリットに光が満ち、床に波紋が走る
 //   object : 白いセラミックの殻 + 黒い核 + 発光する輪。iMotion (= 再生中かどうか) で姿が変わる
 //            停止中: 閉じた卵。パッドのすぐ上で直立して静止し、合わせ目から光が呼吸するように漏れる
 //            再生中: 浮き上がって開き、傾いた軸でゆっくり回る。形は iShapeWeights で 3 つの間を morph する
@@ -38,6 +39,8 @@ float gPulse;     // 4 つ打ちの脈打ち 0..1。開いている間だけ効�
 float gScale;     // 脈打ちによる膨らみ
 float gRingPower; // 発光輪の強さ
 float gCoreR;     // 核の半径 (結晶の時は中に収まるよう少し小さくなる)
+float gBass;      // sidechain の低音の強さ 0..1。世界の側が反応する (動いている間だけ)
+float gBassWave;  // 低音の立ち上がりから広がる波紋の濃さ 0..1
 vec3 gCenter;
 vec3 gShape;      // 形の重み [割れた球, 結晶, 輪]。停止中は必ず球 (= 卵) に戻る
 mat2 gTilt, gSpin, gBandA, gBandB, gBandC, gBandYaw;
@@ -53,6 +56,8 @@ void setupObject() {
   gRingPower = mix(breath, 1.0 + PULSE_GLOW * gPulse, gOpen);
   gCenter = vec3(0.0, mix(REST_Y, HOVER_Y, gOpen) + BOB_AMOUNT * sin(iMotionTime * BOB_SPEED) * gOpen, 0.0);
   gShape = mix(vec3(1.0, 0.0, 0.0), iShapeWeights, gOpen);
+  gBass = iBass * gOpen;
+  gBassWave = iBassHit * exp(-iBassHitAge * BASS_WAVE_DECAY) * gOpen;
 
   // 結晶の内側に核が収まる大きさ (面までの距離 - 殻の厚み - 余白)
   float crystalInner = CRYSTAL_SIZE / sqrt(2.0 + 1.0 / (CRYSTAL_STRETCH * CRYSTAL_STRETCH)) - 2.0 * SHELL_T - 0.05;
@@ -235,6 +240,11 @@ vec3 env(vec3 rd) {
     float slit = smoothstep(0.1, 0.07, sx) * smoothstep(0.14, 0.2, h) * smoothstep(0.9, 0.84, h);
     float bloom = smoothstep(0.4, 0.0, sx) * smoothstep(0.0, 0.3, h) * smoothstep(1.0, 0.75, h);
     vec3 wall = vec3(0.78, 0.8, 0.84) + vec3(0.7) * slit + vec3(0.1) * bloom;
+    // 低音: スリットの中を accent 色の光が下から満ちる。満ちた高さ = 低音の強さ
+    float level = mix(0.14, 0.9, gBass);
+    float fill = smoothstep(level, level - 0.08, h) * step(0.001, gBass);
+    wall = mix(wall, ACCENT * 0.85 + 0.12, slit * fill * BASS_WALL);
+    wall = mix(wall, ACCENT, bloom * fill * gBass * BASS_WALL * 0.25);
     wall = mix(HORIZON, wall, smoothstep(0.0, 0.6, h));
     // 壁の上端: 暗い見切りと accent の細い線
     wall *= 1.0 - 0.3 * smoothstep(0.955, 0.97, h);
@@ -333,6 +343,11 @@ vec3 shadeFloor(vec3 pos, vec3 rd, float t) {
   // パッドの一部だけ accent 色の弧
   float arc = aaLine(rr - PAD_RADIUS, 0.012, fr) * smoothstep(0.75, 0.8, sin(az * 1.0));
   col = mix(col, ACCENT * 0.9, arc * 0.9 * gRingPower);
+
+  // 低音: 立ち上がるたびに、パッドから外へ波紋が走る (細い線 + 淡い帯)
+  float waveR = PAD_RADIUS + iBassHitAge * BASS_WAVE_SPEED;
+  float wave = aaLine(rr - waveR, 0.015, fr) + 0.3 * smoothstep(0.7, 0.0, abs(rr - waveR));
+  col = mix(col, ACCENT * 0.9, clamp(wave, 0.0, 1.0) * gBassWave * BASS_WAVE * exp(-0.03 * t));
 
   // 光沢: object と空間が映り込む
   vec3 n = vec3(0.0, 1.0, 0.0);

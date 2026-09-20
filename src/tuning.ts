@@ -2,7 +2,7 @@
 //
 //   shader  → src/shaders/*.frag に同名の const として埋め込まれる (shader 側には書かない)。
 //             number = float、[r, g, b] = vec3。保存すると reload なしで反映される
-//   pulse   → 脈打ちの周期と鋭さ。保存すると reload なしで反映される
+//   pulse / bass → 脈打ちと低音反応の効き方。保存すると reload なしで反映される
 //   motion / shape → 切り替わりの速さ。反映には reload が要る
 
 export const tuning = {
@@ -17,6 +17,16 @@ export const tuning = {
   shape: {
     /** 切り替えてから morph がほぼ終わるまでの秒数。 */
     morphSeconds: 1.6,
+  },
+
+  // 低音への反応 (世界の側が反応する)。sidechain bus の低域を見る
+  bass: {
+    /** sidechain の低域 (0..1、dB スケール) のうち、floor 以下は無反応、ceil 以上で最大。 */
+    floor: 0.35,
+    ceil: 0.85,
+    /** 反応の立ち上がり / 戻りの時定数 (秒)。 */
+    attack: 0.01,
+    release: 0.22,
   },
 
   // 4 つ打ちの脈打ち。位置は transport の拍。再生中は常に脈打つ
@@ -97,6 +107,15 @@ export const tuning = {
     /** 床のパッド: 輪の半径と、目盛りが回る速さ (rad/秒)。 */
     PAD_RADIUS: 1.6,
     PAD_SPIN_SPEED: 0.05,
+
+    // --- 世界: 低音 (sidechain) への反応 ---
+    /** 壁の光のスリットの中を、低音の強さに応じて accent 色の光が下から満ちる (0 = 無効 〜 1)。 */
+    BASS_WALL: 0.9,
+    /** 低音が立ち上がるたびに、床のパッドから外へ走る波紋の濃さ (0 = 無効 〜 1)。 */
+    BASS_WAVE: 0.8,
+    /** 波紋の速さ (距離/秒) と、消えていく速さ。 */
+    BASS_WAVE_SPEED: 7,
+    BASS_WAVE_DECAY: 3.5,
 
     // --- カメラ ---
     CAM_DISTANCE: 8,
