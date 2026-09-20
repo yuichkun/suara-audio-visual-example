@@ -30,6 +30,6 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "include": ["src", "tests", "scripts", "cli"],
+  "include": ["src", "tests", "scripts", "cli", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"],
   "exclude": ["src/worklets", "templates"]
 }
