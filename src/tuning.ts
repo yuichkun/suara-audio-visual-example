@@ -2,7 +2,13 @@
 //
 //   shader  → src/shaders/*.frag に同名の const として埋め込まれる (shader 側には書かない)。
 //             number = float、[r, g, b] = vec3。保存すると reload なしで反映される
-//   motion  → 「動く / 止まる」の切り替わりの速さ (TS 側で使う)。反映には reload が要る
+//   motion / pulse → TS 側で使う値。反映には reload が要る
+
+/** 脈打ちの「門」を何で開けるか。
+ *   sidechain: sidechain bus の音の立ち上がり (キックのトラックを Side-Chain に送る)
+ *   main     : main bus の低域の立ち上がり (mix の中からキックを拾う)
+ *   always   : 門なし。再生中は常に拍で脈打つ */
+export type PulseSource = 'sidechain' | 'main' | 'always';
 
 export const tuning = {
   motion: {
@@ -10,6 +16,18 @@ export const tuning = {
     attack: 0.5,
     /** 止めてから閉じるまでの時定数 (秒)。 */
     release: 0.9,
+  },
+
+  // 4 つ打ちで脈打つ動き。形は拍グリッド、出る / 出ないは実際にビートが鳴っているかで決まる
+  pulse: {
+    source: 'sidechain' as PulseSource,
+    /** 周期 (拍)。1 = 4 分音符ごと。 */
+    cycleBeats: 1,
+    /** 減衰の鋭さ。大きいほど短く鋭い。 */
+    sharpness: 5,
+    /** ビートが止んでから、この拍数は脈打ち続け、そこから fadeBeats 拍かけて消える。 */
+    holdBeats: 1.5,
+    fadeBeats: 1,
   },
 
   shader: {
@@ -33,6 +51,14 @@ export const tuning = {
     BOB_SPEED: 0.6,
     /** 黒い核の半径 (殻の内側は 0.97)。発光輪は核の表面に乗る。 */
     CORE_RADIUS: 0.74,
+
+    // --- object: 脈打ち (pulse が 1 の瞬間にどれだけ変わるか) ---
+    /** 大きさ (0.035 = 3.5% 膨らむ)。 */
+    PULSE_SCALE: 0.035,
+    /** 割れ目が余分に開く量。 */
+    PULSE_GAP: 0.02,
+    /** 発光輪が余分に明るくなる量 (1 = 2 倍)。 */
+    PULSE_GLOW: 0.8,
 
     // --- object: 停止中 (閉じた卵) ---
     /** 卵の上半分の伸び (1 = 球)。 */

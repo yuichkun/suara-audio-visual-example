@@ -4,9 +4,14 @@ import type { UniformSpec } from './kit/glsl/renderer';
 import type { Frame } from './kit/signals';
 import { params, type ParamKey } from './params';
 
-export const uniforms: readonly UniformSpec<Frame<ParamKey>>[] = [
+/** kit の Frame に、この作品固有の値を足したもの。main.ts が毎フレーム埋める。 */
+export type AppFrame = Frame<ParamKey> & {
+  /** 4 つ打ちの脈打ち 0..1 (tuning.pulse)。 */
+  pulse: number;
+};
+
+export const uniforms: readonly UniformSpec<AppFrame>[] = [
   ...standardUniforms,
   ...paramUniforms(params),
-  // 自前の uniform はここに足す。例:
-  // { name: 'iKick', type: 'float', get: (f) => f.audio.low * f.audio.onset },
+  { name: 'iPulse', type: 'float', get: (f) => f.pulse },
 ];

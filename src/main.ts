@@ -2,11 +2,11 @@ import { useMidi, useTransport } from '@suara/sdk';
 import { createAudioGraph } from './kit/audio-graph';
 import { createGlslRenderer } from './kit/glsl/renderer';
 import { sceneForValue, type Scene } from './kit/glsl/scenes';
-import { createSignals } from './kit/signals';
+import { createGatedPulse, createSignals } from './kit/signals';
 import { params } from './params';
 import { SCENES } from './scenes';
 import { tuning } from './tuning';
-import { uniforms } from './uniforms';
+import { uniforms, type AppFrame } from './uniforms';
 import dspUrl from './worklets/dsp-worklet.ts?worker&url';
 
 async function main(): Promise<void> {
@@ -19,6 +19,7 @@ async function main(): Promise<void> {
   await midi.whenReady();
   const graph = await createAudioGraph({ dsp: { url: dspUrl, processorName: 'suara-dsp' } });
   const signals = createSignals({ transport, midi, graph, params, motionEase: tuning.motion });
+  const beatPulse = createGatedPulse(tuning.pulse);
 
   // --- 描画 ---
   const renderer = createGlslRenderer(canvas, uniforms, {
@@ -51,7 +52,11 @@ async function main(): Promise<void> {
   }
 
   const loop = (nowMs: number): void => {
-    const frame = signals.update(nowMs);
+    const frame = signals.update(nowMs) as AppFrame;
+    const { source } = tuning.pulse;
+    const gate =
+      source === 'always' ? null : source === 'main' ? frame.audio.lowOnset : frame.sidechain.onset;
+    frame.pulse = beatPulse.update(frame.transport, gate, frame.dt).pulse;
     showScene(sceneForValue(scenes, frame.params.scene));
     renderer.draw(frame);
     requestAnimationFrame(loop);

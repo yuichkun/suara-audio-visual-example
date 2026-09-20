@@ -12,7 +12,7 @@
 #define TAU 6.28318530718
 
 // object を包む球。これの外では raymarch しない
-const float BOUND_R = 1.075 * max(EGG_STRETCH, 1.0);
+const float BOUND_R = 1.075 * max(EGG_STRETCH, 1.0) * (1.0 + PULSE_SCALE);
 const vec3 KEY_DIR = normalize(vec3(-0.45, 0.85, 0.4));
 const float WALL_TOP = radians(WALL_TOP_DEG);
 
@@ -35,9 +35,15 @@ float openAmount() {
   return smoothstep(0.0, 1.0, iMotion);
 }
 
-// 発光輪の強さ。停止中は待機ランプのようにゆっくり呼吸する
+// 4 つ打ちの脈打ち 0..1。開いている (= 再生中) 間だけ効く
+float pulseAmount() {
+  return iPulse * openAmount();
+}
+
+// 発光輪の強さ。停止中は待機ランプのようにゆっくり呼吸し、再生中は拍で明るくなる
 float ringPower() {
-  return mix(BREATH_LEVEL + BREATH_DEPTH * sin(iTime * BREATH_SPEED), 1.0, openAmount());
+  float breath = BREATH_LEVEL + BREATH_DEPTH * sin(iTime * BREATH_SPEED);
+  return mix(breath, 1.0 + PULSE_GLOW * pulseAmount(), openAmount());
 }
 
 vec3 objectCenter() {
@@ -52,7 +58,8 @@ vec3 toObject(vec3 p) {
   p.xy *= rot(TILT * open);
   p.xz *= rot(iMotionTime * SPIN_SPEED);
   if (p.y > 0.0) p.y /= mix(EGG_STRETCH, 1.0, open);
-  return p;
+  // 脈打ち: 全体がわずかに膨らむ (距離の補正は mapObject 側)
+  return p / (1.0 + PULSE_SCALE * pulseAmount());
 }
 
 float sdRing(vec3 q) {
@@ -67,7 +74,7 @@ vec2 mapObject(vec3 p) {
   // 殻: 中空の球を赤道で割り、パネルの継ぎ目を細く切る。閉じている間は髪の毛ほどの合わせ目だけ
   float open = openAmount();
   float shell = abs(r - 1.0) - 0.032;
-  shell = smax(shell, -(abs(q.y) - mix(0.003, GAP_OPEN, open)), mix(0.008, 0.025, open));
+  shell = smax(shell, -(abs(q.y) - mix(0.003, GAP_OPEN + PULSE_GAP * pulseAmount(), open)), mix(0.008, 0.025, open));
   float seamW = mix(-0.01, 0.007, smoothstep(0.35, 1.0, open));
   float a = mod(atan(q.z, q.x) + TAU / 12.0, TAU / 6.0) - TAU / 12.0;
   float seamLon = abs(sin(a)) * length(q.xz) - seamW;
@@ -80,6 +87,7 @@ vec2 mapObject(vec3 p) {
   vec2 res = vec2(shell, MAT_SHELL);
   if (core < res.x) res = vec2(core, MAT_CORE);
   if (ring < res.x) res = vec2(ring, MAT_RING);
+  res.x *= 1.0 + PULSE_SCALE * pulseAmount();
   return res;
 }
 
