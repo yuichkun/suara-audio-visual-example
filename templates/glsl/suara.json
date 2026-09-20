@@ -2,13 +2,13 @@
   "mode": "dev",
   "devUrl": "http://localhost:5173",
   "assets": "www",
-  "name": "SuaraVisual",
-  "vendor": "Suara",
+  "name": "__NAME__",
+  "vendor": "__VENDOR__",
   "type": "effect",
   "category": "Fx|Visual",
   "page": "",
-  "processorUuid": "BDE53452E768424AB229CA2D4A0581DD",
-  "controllerUuid": "6B312E446E8F41E7991CD59C48365984",
+  "processorUuid": "__PROCESSOR_UUID__",
+  "controllerUuid": "__CONTROLLER_UUID__",
   "parameters": [
     { "id": 0, "title": "Scene", "default": 0.0, "flags": ["automatable"] },
     { "id": 1, "title": "Intensity", "default": 0.5, "flags": ["automatable"] },
@@ -17,7 +17,10 @@
     { "id": 4, "title": "AudioAmount", "default": 1.0, "flags": ["automatable"] }
   ],
   "buses": {
-    "audioInputs": [{ "name": "Stereo In", "arrangement": "stereo", "busType": "main" }],
+    "audioInputs": [
+      { "name": "Stereo In", "arrangement": "stereo", "busType": "main" },
+      { "name": "Sidechain In", "arrangement": "stereo", "busType": "aux", "defaultActive": false }
+    ],
     "audioOutputs": [{ "name": "Stereo Out", "arrangement": "stereo" }],
     "eventInputs": [{ "name": "Event In", "channels": 1 }]
   }
