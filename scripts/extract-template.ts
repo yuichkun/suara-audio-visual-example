@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Re-extract templates/glsl from the working plugin at repo root. */
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -33,4 +33,16 @@ for (const k of ['@playwright/test', 'gunshi', 'vitest']) {
   delete p.devDependencies[k];
 }
 writeFileSync(pkgPath, JSON.stringify(p, null, 2) + '\n');
+
+const tsPath = join(dest, 'tsconfig.json');
+const ts = JSON.parse(readFileSync(tsPath, 'utf8')) as {
+  include?: string[];
+  exclude?: string[];
+  compilerOptions?: { types?: string[] };
+};
+ts.include = ['src'];
+ts.exclude = ['src/worklets'];
+if (ts.compilerOptions) ts.compilerOptions.types = ['vite/client'];
+writeFileSync(tsPath, JSON.stringify(ts, null, 2) + '\n');
+
 console.log(`extracted → ${dest}`);

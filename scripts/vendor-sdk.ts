@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir =
-  process.env.SUARA_SDK_SRC ??
+  process.env['SUARA_SDK_SRC'] ??
   join(root, '..', 'suara', 'poc_v2', 'sdk', 'src');
 const dstDir = join(root, 'src', 'sdk');
 
@@ -79,6 +79,38 @@ rewrite(join(dstDir, 'param.ts'), (c) =>
       /\/\*\* denormalized 現在値 \(reactive\)。knob \/ worklet はこれを読む。 \*\//,
       '/** denormalized 現在値。knob / worklet はこれを読む。 */',
     ),
+);
+
+rewrite(join(dstDir, 'ring.ts'), (c) =>
+  c.replace(
+    /cb\(view\[base \+ EV_TYPE\], view\[base \+ EV_PITCH\], view\[base \+ EV_VEL_MILLI\], view\[base \+ EV_SAMPLE_OFFSET\]\);/,
+    `cb(
+      view[base + EV_TYPE] ?? 0,
+      view[base + EV_PITCH] ?? 0,
+      view[base + EV_VEL_MILLI] ?? 0,
+      view[base + EV_SAMPLE_OFFSET] ?? 0,
+    );`,
+  ),
+);
+
+rewrite(join(dstDir, 'transport.ts'), (c) =>
+  c.replace(
+    /const st = view\[base \+ 0\];\n      state\.isPlaying = \(st & ST_PLAYING\) !== 0;\n      state\.isRecording = \(st & ST_RECORDING\) !== 0;\n      if \(st & ST_TEMPO_VALID\) \{\n        state\.tempo = view\[base \+ 1\] \/ 1000;\n      \}\n      if \(st & ST_TIMESIG_VALID\) \{\n        state\.timeSigNum = view\[base \+ 2\];\n        state\.timeSigDenom = view\[base \+ 3\];\n      \}\n      \/\/ int64 projectTimeSamples = hi \* 2\^32 \+ lo \(lo as unsigned 32-bit\)\.\n      const lo = view\[base \+ 4\] >>> 0;\n      const hi = view\[base \+ 5\];\n      state\.positionSamples = hi \* 4294967296 \+ lo;/,
+    `const st = view[base + 0] ?? 0;
+      state.isPlaying = (st & ST_PLAYING) !== 0;
+      state.isRecording = (st & ST_RECORDING) !== 0;
+      if (st & ST_TEMPO_VALID) {
+        state.tempo = (view[base + 1] ?? 0) / 1000;
+      }
+      if (st & ST_TIMESIG_VALID) {
+        state.timeSigNum = view[base + 2] ?? 4;
+        state.timeSigDenom = view[base + 3] ?? 4;
+      }
+      // int64 projectTimeSamples = hi * 2^32 + lo (lo as unsigned 32-bit).
+      const lo = (view[base + 4] ?? 0) >>> 0;
+      const hi = view[base + 5] ?? 0;
+      state.positionSamples = hi * 4294967296 + lo;`,
+  ),
 );
 
 console.log(`vendored SDK → ${dstDir} (Vue/ARA/helpers stripped)`);

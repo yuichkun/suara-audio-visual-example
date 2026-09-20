@@ -35,7 +35,12 @@ export function drainMidi(view: Int32Array, tail: number, cb: MidiEventSink): nu
   const capacity = view[SLOT_CAPACITY] || RING_CAPACITY;
   while (tail < writeSeq) {
     const base = HEADER_INTS + (tail % capacity) * EVENT_INTS;
-    cb(view[base + EV_TYPE], view[base + EV_PITCH], view[base + EV_VEL_MILLI], view[base + EV_SAMPLE_OFFSET]);
+    cb(
+      view[base + EV_TYPE] ?? 0,
+      view[base + EV_PITCH] ?? 0,
+      view[base + EV_VEL_MILLI] ?? 0,
+      view[base + EV_SAMPLE_OFFSET] ?? 0,
+    );
     tail++;
   }
   return tail;

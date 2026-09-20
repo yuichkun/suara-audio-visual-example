@@ -3,7 +3,6 @@ import { test, expect } from '@playwright/test';
 test.describe('Feature: web runtime で絵が出る', () => {
   test('given HUD play when a few frames then canvas center is not black', async ({ page }) => {
     await page.goto('/');
-    // AudioContext often needs a user gesture
     await page.getByTestId('hud-play').click();
     await page.waitForTimeout(500);
 
@@ -21,7 +20,7 @@ test.describe('Feature: web runtime で絵が出る', () => {
         gl.UNSIGNED_BYTE,
         px,
       );
-      return px[0] + px[1] + px[2];
+      return (px[0] ?? 0) + (px[1] ?? 0) + (px[2] ?? 0);
     });
     expect(lum).toBeGreaterThan(0);
   });
@@ -30,24 +29,20 @@ test.describe('Feature: web runtime で絵が出る', () => {
     await page.goto('/harness.html');
     await page.waitForFunction(() => !!(window as unknown as { __suaraHarness?: unknown }).__suaraHarness);
 
-    // Use main app for error HUD — inject broken shader via evaluate on a fresh page
-    await page.goto('/');
-    await page.waitForSelector('#stage');
-
-    const err = await page.evaluate(async () => {
-      const { createWebGlRenderer } = await import('/src/render/webgl.ts');
-      const canvas = document.createElement('canvas');
-      canvas.width = 16;
-      canvas.height = 16;
-      let message: string | null = null;
-      const r = createWebGlRenderer(canvas, (m) => {
-        message = m;
-      });
-      r?.setFragmentSource('void mainImage(out vec4 c, in vec2 p) { not_a_valid_token }');
-      return message;
+    const result = await page.evaluate(() => {
+      const h = (
+        window as unknown as {
+          __suaraHarness: {
+            compileSource: (src: string) => { ok: true } | { ok: false; log: string };
+          };
+        }
+      ).__suaraHarness;
+      return h.compileSource('void mainImage(out vec4 c, in vec2 p) { not_a_valid_token }');
     });
 
-    expect(err).toBeTruthy();
-    expect(String(err)).toMatch(/error|ERROR|syntax|undeclared|failed/i);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.log).toMatch(/error|ERROR|syntax|undeclared|failed/i);
+    }
   });
 });

@@ -68,8 +68,9 @@ web runtime では画面下に Play / BPM / ファイル入力 / 簡易鍵盤が
 ## テスト
 
 ```bash
-npm test          # vitest — clock / MIDI / spectrum / SDK web 経路
-npm test:e2e      # Playwright — WebGL probe + 画面スモーク
+npm run typecheck  # 厳格な tsc（noUncheckedIndexedAccess / exactOptionalPropertyTypes 等）
+npm test           # vitest — clock / MIDI / spectrum / SDK web 経路
+npm test:e2e       # Playwright — WebGL probe + 画面スモーク
 ```
 
 ## Cubase 実機チェックリスト

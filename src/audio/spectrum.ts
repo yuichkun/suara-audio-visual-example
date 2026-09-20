@@ -8,7 +8,7 @@ export function analyseTimeDomain(buf: Float32Array): TimeDomainStats {
   let sum = 0;
   let peak = 0;
   for (let i = 0; i < buf.length; i++) {
-    const s = buf[i];
+    const s = buf[i] ?? 0;
     sum += s * s;
     const a = Math.abs(s);
     if (a > peak) peak = a;
@@ -21,9 +21,9 @@ export function analyseTimeDomain(buf: Float32Array): TimeDomainStats {
 export function binsToTextureData(freq: Uint8Array | Float32Array, out: Float32Array): void {
   const n = Math.min(freq.length, out.length);
   if (freq instanceof Uint8Array) {
-    for (let i = 0; i < n; i++) out[i] = freq[i] / 255;
+    for (let i = 0; i < n; i++) out[i] = (freq[i] ?? 0) / 255;
   } else {
-    for (let i = 0; i < n; i++) out[i] = Math.min(1, Math.max(0, freq[i]));
+    for (let i = 0; i < n; i++) out[i] = Math.min(1, Math.max(0, freq[i] ?? 0));
   }
 }
 

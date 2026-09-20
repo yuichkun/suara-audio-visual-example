@@ -4,15 +4,21 @@ import { analyseTimeDomain, binsToTextureData, createHitTracker } from './audio/
 import { createWebClock, packClock } from './daw/clock';
 import { mapMidiToUniforms } from './daw/midi';
 import { createParams } from './daw/params';
-import { createWebGlRenderer } from './render/webgl';
-import { SCENES, sceneIndexFromParam } from './scenes';
+import { createWebGlRenderer, type WebGlRenderer } from './render/webgl';
+import { sceneIndexFromParam, sceneSource } from './scenes';
 import { createUniformState } from './uniforms/layout';
 import { derive } from './uniforms/derive';
 import { mountHud } from './web/hud';
 
-const canvas = document.getElementById('stage') as HTMLCanvasElement;
-const errorEl = document.getElementById('error') as HTMLDivElement;
-const hudEl = document.getElementById('hud') as HTMLDivElement;
+const canvasEl = document.getElementById('stage');
+const errorNode = document.getElementById('error');
+const hudNode = document.getElementById('hud');
+if (!(canvasEl instanceof HTMLCanvasElement)) throw new Error('#stage canvas required');
+if (!(errorNode instanceof HTMLElement)) throw new Error('#error required');
+if (!(hudNode instanceof HTMLElement)) throw new Error('#hud required');
+const canvas = canvasEl;
+const errorEl = errorNode;
+const hudEl = hudNode;
 
 function setError(msg: string | null): void {
   errorEl.textContent = msg ?? '';
@@ -32,14 +38,15 @@ async function main(): Promise<void> {
   });
 
   const webClock = createWebClock();
-  const renderer = createWebGlRenderer(canvas, setError);
-  if (!renderer) return;
+  const maybeRenderer = createWebGlRenderer(canvas, setError);
+  if (!maybeRenderer) return;
+  const renderer: WebGlRenderer = maybeRenderer;
 
   let currentScene = -1;
   function ensureScene(idx: number): void {
     if (idx === currentScene) return;
     currentScene = idx;
-    renderer.setFragmentSource(SCENES[idx] ?? SCENES[0]);
+    renderer.setFragmentSource(sceneSource(idx));
   }
   ensureScene(0);
 
@@ -90,8 +97,8 @@ async function main(): Promise<void> {
           })
         : webClock.pack({ tempo: st.tempo, timeSigNum: st.timeSigNum });
 
-    graph.analyser.getFloatTimeDomainData(graph.timeBuf);
-    graph.analyser.getByteFrequencyData(graph.freqBuf);
+    graph.analyser.getFloatTimeDomainData(graph.timeBuf as Float32Array<ArrayBuffer>);
+    graph.analyser.getByteFrequencyData(graph.freqBuf as Uint8Array<ArrayBuffer>);
     const td = analyseTimeDomain(graph.timeBuf);
     binsToTextureData(graph.freqBuf, spectrum);
     const iHit = hit.update(td.rms);

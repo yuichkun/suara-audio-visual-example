@@ -7,7 +7,7 @@ void main() { gl_Position = vec4(POS[gl_VertexID], 0.0, 1.0); }
 `;
 
 /** Thin wrapper: user fragment provides mainImage(out vec4, in vec2 fragCoord). */
-function wrapFragment(userSrc: string): string {
+export function wrapFragment(userSrc: string): string {
   return `#version 300 es
 precision highp float;
 uniform vec2 iResolution;
@@ -101,15 +101,18 @@ const UNIFORM_NAMES = [
   'iSpectrum',
 ] as const;
 
+type UniformName = (typeof UNIFORM_NAMES)[number];
+
 export function createWebGlRenderer(
   canvas: HTMLCanvasElement,
   onError?: ShaderErrorHandler,
 ): WebGlRenderer | null {
-  const gl = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
-  if (!gl) {
+  const glOrNull = canvas.getContext('webgl2', { antialias: false, preserveDrawingBuffer: true });
+  if (!glOrNull) {
     onError?.('WebGL2 not available');
     return null;
   }
+  const gl: WebGL2RenderingContext = glOrNull;
 
   const vs = compileShader(gl, gl.VERTEX_SHADER, VERT);
   if (typeof vs === 'string') {
@@ -118,28 +121,37 @@ export function createWebGlRenderer(
   }
 
   let program: WebGLProgram | null = null;
-  const locs: Record<string, WebGLUniformLocation | null> = {};
+  const locs = new Map<UniformName, WebGLUniformLocation>();
   let spectrumTex: WebGLTexture | null = null;
   let spectrumWidth = 0;
   let state: UniformState | null = null;
 
   function cacheLocs(prog: WebGLProgram): void {
+    locs.clear();
     for (const name of UNIFORM_NAMES) {
-      locs[name] = gl.getUniformLocation(prog, name);
+      const loc = gl.getUniformLocation(prog, name);
+      if (loc) locs.set(name, loc);
     }
   }
 
   function ensureSpectrum(width: number): void {
     if (spectrumTex && spectrumWidth === width) return;
     if (spectrumTex) gl.deleteTexture(spectrumTex);
-    spectrumTex = gl.createTexture();
+    const tex = gl.createTexture();
+    if (!tex) return;
+    spectrumTex = tex;
     spectrumWidth = width;
-    gl.bindTexture(gl.TEXTURE_2D, spectrumTex);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, width, 1, 0, gl.RED, gl.FLOAT, null);
+  }
+
+  function u1f(name: UniformName, value: number): void {
+    const loc = locs.get(name);
+    if (loc) gl.uniform1f(loc, value);
   }
 
   const api: WebGlRenderer = {
@@ -180,6 +192,7 @@ export function createWebGlRenderer(
 
     setSpectrum(data: Float32Array) {
       ensureSpectrum(data.length);
+      if (!spectrumTex) return;
       gl.bindTexture(gl.TEXTURE_2D, spectrumTex);
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, data.length, 1, gl.RED, gl.FLOAT, data);
     },
@@ -199,28 +212,30 @@ export function createWebGlRenderer(
       if (!program || !state) return;
       gl.useProgram(program);
       const s = state;
-      if (locs.iResolution) gl.uniform2f(locs.iResolution, s.iResolutionX, s.iResolutionY);
-      if (locs.iTime) gl.uniform1f(locs.iTime, s.iTime);
-      if (locs.iDelta) gl.uniform1f(locs.iDelta, s.iDelta);
-      if (locs.iBeat) gl.uniform1f(locs.iBeat, s.iBeat);
-      if (locs.iBar) gl.uniform1f(locs.iBar, s.iBar);
-      if (locs.iTempo) gl.uniform1f(locs.iTempo, s.iTempo);
-      if (locs.iPlaying) gl.uniform1f(locs.iPlaying, s.iPlaying);
-      if (locs.iRms) gl.uniform1f(locs.iRms, s.iRms);
-      if (locs.iPeak) gl.uniform1f(locs.iPeak, s.iPeak);
-      if (locs.iHit) gl.uniform1f(locs.iHit, s.iHit);
-      if (locs.iNoteCount) gl.uniform1f(locs.iNoteCount, s.iNoteCount);
-      if (locs.iLastNote) gl.uniform1f(locs.iLastNote, s.iLastNote);
-      if (locs.iLastVel) gl.uniform1f(locs.iLastVel, s.iLastVel);
-      if (locs.iScene) gl.uniform1f(locs.iScene, s.iScene);
-      if (locs.iP0) gl.uniform1f(locs.iP0, s.iP0);
-      if (locs.iP1) gl.uniform1f(locs.iP1, s.iP1);
-      if (locs.iP2) gl.uniform1f(locs.iP2, s.iP2);
-      if (locs.iP3) gl.uniform1f(locs.iP3, s.iP3);
-      if (locs.iSpectrum && spectrumTex) {
+      const res = locs.get('iResolution');
+      if (res) gl.uniform2f(res, s.iResolutionX, s.iResolutionY);
+      u1f('iTime', s.iTime);
+      u1f('iDelta', s.iDelta);
+      u1f('iBeat', s.iBeat);
+      u1f('iBar', s.iBar);
+      u1f('iTempo', s.iTempo);
+      u1f('iPlaying', s.iPlaying);
+      u1f('iRms', s.iRms);
+      u1f('iPeak', s.iPeak);
+      u1f('iHit', s.iHit);
+      u1f('iNoteCount', s.iNoteCount);
+      u1f('iLastNote', s.iLastNote);
+      u1f('iLastVel', s.iLastVel);
+      u1f('iScene', s.iScene);
+      u1f('iP0', s.iP0);
+      u1f('iP1', s.iP1);
+      u1f('iP2', s.iP2);
+      u1f('iP3', s.iP3);
+      const spec = locs.get('iSpectrum');
+      if (spec && spectrumTex) {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, spectrumTex);
-        gl.uniform1i(locs.iSpectrum, 0);
+        gl.uniform1i(spec, 0);
       }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     },
@@ -228,6 +243,3 @@ export function createWebGlRenderer(
 
   return api;
 }
-
-/** Exported for e2e probe: encode uniforms into RGBA via a fragment. */
-export { wrapFragment };

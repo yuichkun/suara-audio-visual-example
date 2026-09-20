@@ -34,7 +34,7 @@ export function mountHud(
 
   const playBtn = document.createElement('button');
   playBtn.type = 'button';
-  playBtn.dataset.testid = 'hud-play';
+  playBtn.setAttribute('data-testid', 'hud-play');
   playBtn.textContent = 'Play';
 
   const tempoLabel = document.createElement('label');
@@ -44,7 +44,7 @@ export function mountHud(
   tempoInput.min = '40';
   tempoInput.max = '240';
   tempoInput.value = String(transport.state.tempo);
-  tempoInput.dataset.testid = 'hud-tempo';
+  tempoInput.setAttribute('data-testid', 'hud-tempo');
   tempoLabel.appendChild(tempoInput);
 
   const fileLabel = document.createElement('label');
@@ -52,12 +52,12 @@ export function mountHud(
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = 'audio/*';
-  fileInput.dataset.testid = 'hud-file';
+  fileInput.setAttribute('data-testid', 'hud-file');
   fileLabel.appendChild(fileInput);
 
   const keys = document.createElement('div');
   keys.id = 'keys';
-  keys.dataset.testid = 'hud-keys';
+  keys.setAttribute('data-testid', 'hud-keys');
 
   for (const k of KEYS) {
     const b = document.createElement('button');

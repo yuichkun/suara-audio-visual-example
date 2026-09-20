@@ -94,19 +94,19 @@ function startPoll(state: TransportState, view: Int32Array): void {
       const cap = view[1] || T_CAPACITY;
       const ring = (seq - 1) % cap;
       const base = T_HEADER_INTS + ring * T_SNAPSHOT_INTS;
-      const st = view[base + 0];
+      const st = view[base + 0] ?? 0;
       state.isPlaying = (st & ST_PLAYING) !== 0;
       state.isRecording = (st & ST_RECORDING) !== 0;
       if (st & ST_TEMPO_VALID) {
-        state.tempo = view[base + 1] / 1000;
+        state.tempo = (view[base + 1] ?? 0) / 1000;
       }
       if (st & ST_TIMESIG_VALID) {
-        state.timeSigNum = view[base + 2];
-        state.timeSigDenom = view[base + 3];
+        state.timeSigNum = view[base + 2] ?? 4;
+        state.timeSigDenom = view[base + 3] ?? 4;
       }
       // int64 projectTimeSamples = hi * 2^32 + lo (lo as unsigned 32-bit).
-      const lo = view[base + 4] >>> 0;
-      const hi = view[base + 5];
+      const lo = (view[base + 4] ?? 0) >>> 0;
+      const hi = view[base + 5] ?? 0;
       state.positionSamples = hi * 4294967296 + lo;
     }
     requestAnimationFrame(poll);
