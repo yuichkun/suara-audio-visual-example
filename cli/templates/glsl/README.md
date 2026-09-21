@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-http://localhost:5173 を開く。最初は shader が 1 つも無いので画面は黒い。
+http://localhost:5173 を開く。右下の小さなアイコンを押すと簡易 DAW シミュレーター (Play / BPM / 音 / 鍵盤 / param) が出る。
 
 DAW で開く (Suara の CLI が使えるマシンで):
 
@@ -31,14 +31,8 @@ suara register dev
 
 ## 最初にやること
 
-`src/shaders/` に `.frag` を 1 つ置く。Shadertoy と同じで `mainImage` を書くだけ。
-
-```glsl
-void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-  vec2 uv = fragCoord / iResolution.xy;
-  fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
-}
-```
+`src/shaders/main.frag` を書き換える。最初に入っているのは、拍・音量・MIDI・automation param が一通り絵に繋がった hello world。
+Shadertoy と同じで `mainImage` を書くだけ。
 
 `iBeat` (拍)、`iLevel` (音量)、`iNotes` (MIDI) など、shader で使える値の一覧と、param や uniform の足し方は
 [src/kit/README.md](src/kit/README.md)。
@@ -47,7 +41,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 
 | ファイル | 役割 |
 |---|---|
-| `src/shaders/*.frag` | shader。複数置くと、ファイル名順に automation の `Scene` で切り替わる |
+| `src/shaders/main.frag` | shader |
 | `src/params.ts` + `suara.json` | automation param |
 | `src/uniforms.ts` | shader に渡す値の一覧 (自前の値はここに足す) |
 | `src/main.ts` | 全体の配線。Suara SDK → kit → shader |

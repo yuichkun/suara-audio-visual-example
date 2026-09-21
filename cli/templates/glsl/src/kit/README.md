@@ -10,6 +10,7 @@ Suara SDK ──▶ signals ──▶ Frame ──▶ glsl (uniform にして sh
 - [`signals/`](signals/) — DAW の入力 → 値。描画の方法には依存しないので、three.js や p5 で描く時もそのまま使える
 - [`audio-graph.ts`](audio-graph.ts) — DAW の音を受ける所。音はそのまま通し、main と sidechain を解析にかける
 - [`glsl/`](glsl/) — WebGL2 の fullscreen shader renderer
+- [`web-daw/`](web-daw/) — ブラウザで開いた時だけ出る簡易 DAW シミュレーター (VST では何もしない)
 
 ## shader の書き方
 
@@ -90,4 +91,4 @@ shader の中で `const float SPEED` / `const vec3 TINT` として使える。�
 - MIDI は note on/off と velocity だけ (CC や pitch bend は Suara の SDK に来ない)
 - 値が更新されるのは画面の 1 フレームごと
 - `iBeat` は「再生位置 × テンポ」から計算している。テンポが一定の曲なら正確。途中でテンポが変わる曲を途中から再生するとズレる
-- ブラウザで開いた時は音を出さない (DAW の中では、トラックの音はそのまま通る)
+- ブラウザで開いた時は、シミュレーターの Sound を on にしない限り音を出さない (DAW の中では、トラックの音はそのまま通る)

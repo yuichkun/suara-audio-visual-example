@@ -21,7 +21,8 @@ npm install
 npm run dev
 ```
 
-http://localhost:5173 を開く。DAW (Cubase など) の中で動かす手順と、作品の中身の説明は [example/README.md](example/README.md)。
+http://localhost:5173 を開き、右下のアイコンから簡易 DAW シミュレーターで再生する。
+DAW (Cubase など) の中で動かす手順と、作品の中身の説明は [example/README.md](example/README.md)。
 
 ## 自分の project を作る
 
