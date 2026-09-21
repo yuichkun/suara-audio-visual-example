@@ -48,3 +48,8 @@ Shadertoy と同じで `mainImage` を書くだけ。
 | `src/worklets/dsp-worklet.ts` | 音を加工したい時の DSP (最初は素通し) |
 | `src/kit/` | 土台。読む用で、基本は触らない |
 | `src/sdk/` | Suara SDK。触らない |
+
+## AI に手伝ってもらう
+
+この project には AI agent 用の skill が入っている ([`.claude/skills/suara-av/SKILL.md`](.claude/skills/suara-av/SKILL.md))。
+Claude Code でこの directory を開けば自動で読み込まれる。他の agent には [`AGENTS.md`](AGENTS.md) 経由で同じものを読ませられる。

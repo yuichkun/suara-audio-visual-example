@@ -37,6 +37,8 @@ DAW で開く手順や最初にやることは、できた project の `README.m
 - DAW の再生位置・拍・automation・MIDI・トラックの音・sidechain を、shader で使える値にする土台 (`src/kit/`)
 - Shadertoy と同じ書き方の GLSL shader を fullscreen で描く renderer
 - shader や値を保存すると、DAW を開いたまま反映される
+- AI agent 用の skill (`.claude/skills/suara-av/`)。Suara と SDK、この土台の使い方、audio visual を作る時のコツが書いてあり、
+  できた project を Claude Code などで開けば、そのまま自分の plugin 作りを頼める
 
 [`example/`](../example/) はこの土台の上に作った作品例。土台のリファレンスは [kit の README](templates/glsl/src/kit/README.md)。
 

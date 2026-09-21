@@ -1,4 +1,6 @@
 .claude
+# scaffold に同梱する AI agent 用の skill は commit する
+!cli/templates/glsl/.claude
 node_modules/
 dist/
 release/
