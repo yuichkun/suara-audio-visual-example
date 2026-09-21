@@ -10,11 +10,7 @@
   "processorUuid": "__PROCESSOR_UUID__",
   "controllerUuid": "__CONTROLLER_UUID__",
   "parameters": [
-    { "id": 0, "title": "Scene", "default": 0.0, "flags": ["automatable"] },
-    { "id": 1, "title": "Intensity", "default": 0.5, "flags": ["automatable"] },
-    { "id": 2, "title": "Hue", "default": 0.5, "flags": ["automatable"] },
-    { "id": 3, "title": "Speed", "default": 0.5, "flags": ["automatable"] },
-    { "id": 4, "title": "AudioAmount", "default": 1.0, "flags": ["automatable"] }
+    { "id": 0, "title": "Amount", "default": 0.5, "flags": ["automatable"] }
   ],
   "buses": {
     "audioInputs": [

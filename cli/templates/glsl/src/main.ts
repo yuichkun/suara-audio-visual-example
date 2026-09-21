@@ -1,10 +1,11 @@
 import { useMidi, useTransport } from '@suara/sdk';
 import { createAudioGraph } from './kit/audio-graph';
 import { createGlslRenderer } from './kit/glsl/renderer';
-import { sceneForValue, type Scene } from './kit/glsl/scenes';
+import type { Scene } from './kit/glsl/scenes';
 import { createSignals } from './kit/signals';
+import { mountWebDaw } from './kit/web-daw';
 import { params } from './params';
-import { SCENES } from './scenes';
+import { SCENE } from './scenes';
 import { uniforms } from './uniforms';
 import dspUrl from './worklets/dsp-worklet.ts?worker&url';
 
@@ -12,12 +13,14 @@ async function main(): Promise<void> {
   const canvas = document.getElementById('stage');
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error('#stage canvas required');
 
-  // --- DAW からの入力 (web では SDK が仮想化する) ---
+  // --- DAW からの入力 ---
   const transport = useTransport();
   const midi = useMidi();
   await midi.whenReady();
   const graph = await createAudioGraph({ dsp: { url: dspUrl, processorName: 'suara-dsp' } });
   const signals = createSignals({ transport, midi, graph, params });
+  // ブラウザで開いた時だけ、右下に簡易 DAW シミュレーターが出る (VST では何もしない)
+  mountWebDaw({ transport, midi, graph, params, playhead: signals.playhead });
 
   // --- 描画 ---
   const renderer = createGlslRenderer(canvas, uniforms, {
@@ -27,10 +30,10 @@ async function main(): Promise<void> {
   });
   if (!renderer) return;
 
-  let scenes = SCENES;
+  let scene = SCENE;
   let current: Scene | null = null;
-  const showScene = (scene: Scene | null): void => {
-    if (!scene || scene === current) return;
+  const compileIfChanged = (): void => {
+    if (scene === current) return;
     current = scene;
     renderer.setFragment(scene.source);
   };
@@ -38,14 +41,14 @@ async function main(): Promise<void> {
   if (import.meta.hot) {
     import.meta.hot.accept('./scenes', (mod) => {
       if (!mod) return;
-      scenes = mod['SCENES'] as readonly Scene[];
+      scene = mod['SCENE'] as Scene;
       current = null;
     });
   }
 
   const loop = (nowMs: number): void => {
     const frame = signals.update(nowMs);
-    showScene(sceneForValue(scenes, frame.params.scene));
+    compileIfChanged();
     renderer.draw(frame);
     requestAnimationFrame(loop);
   };
