@@ -21,31 +21,40 @@ export interface WebDawOptions {
 }
 
 const CSS = `
-.wd { position: fixed; z-index: 10; font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #333; user-select: none; }
+.wd { position: fixed; z-index: 10; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: #333; user-select: none; }
 .wd * { box-sizing: border-box; }
-.wd-icon { right: 14px; bottom: 14px; width: 28px; height: 28px; border: 1px solid #888; border-radius: 50%;
+.wd-icon { right: 16px; bottom: 16px; width: 30px; height: 30px; border: 1px solid #888; border-radius: 50%;
   background: rgba(255,255,255,0.6); opacity: 0.35; cursor: pointer; display: grid; place-items: center; transition: opacity 0.15s; }
 .wd-icon:hover, .wd-icon[aria-expanded="true"] { opacity: 1; }
 .wd-icon svg { width: 12px; height: 12px; fill: #333; }
-.wd-panel { right: 14px; bottom: 50px; width: 248px; padding: 10px 12px; display: none;
-  background: rgba(255,255,255,0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-  border: 1px solid #ccc; border-radius: 6px; }
+.wd-panel { right: 16px; bottom: 56px; width: 340px; padding: 6px 18px 14px; display: none;
+  background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid #ccc; border-radius: 8px; }
 .wd-panel[data-open="true"] { display: block; }
-.wd-row { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
-.wd-label { width: 68px; color: #888; flex: none; }
-.wd button { font: inherit; color: inherit; background: transparent; border: 1px solid #bbb; border-radius: 3px;
-  padding: 2px 8px; cursor: pointer; }
+.wd-section { margin-top: 12px; }
+.wd-heading { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #999; margin-bottom: 6px; }
+.wd-row { display: flex; align-items: center; gap: 10px; min-height: 28px; }
+.wd-row + .wd-row { margin-top: 6px; }
+.wd label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.wd input[type="radio"], .wd input[type="checkbox"] { margin: 0; accent-color: #333; }
+.wd button { font: inherit; color: inherit; background: #fff; border: 1px solid #bbb; border-radius: 4px;
+  padding: 4px 12px; cursor: pointer; white-space: nowrap; }
 .wd button:hover { border-color: #333; }
-.wd button[aria-pressed="true"] { background: #333; color: #fff; border-color: #333; }
-.wd input[type="number"] { width: 48px; font: inherit; color: inherit; background: transparent; border: 1px solid #bbb;
-  border-radius: 3px; padding: 2px 4px; }
-.wd input[type="range"] { flex: 1; min-width: 0; accent-color: #333; }
-.wd-keys { display: flex; gap: 2px; }
-.wd-keys button { flex: 1; padding: 6px 0; min-width: 0; }
-.wd-keys button.black { background: #333; color: #fff; border-color: #333; }
-.wd-keys button.black[aria-pressed="true"], .wd-keys button[aria-pressed="true"] { background: #999; border-color: #999; }
-.wd-value { width: 34px; text-align: right; color: #888; flex: none; }
+.wd-play { min-width: 84px; }
+.wd input[type="number"] { width: 60px; font: inherit; color: inherit; background: #fff; border: 1px solid #bbb;
+  border-radius: 4px; padding: 4px 6px; }
 .wd-file { display: none; }
+.wd-filename { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #888; }
+.wd-keys { position: relative; height: 64px; display: flex; }
+.wd-keys .white { flex: 1; border: 1px solid #bbb; border-radius: 0 0 4px 4px; background: #fff; padding: 0;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 4px; color: #999; font-size: 10px; }
+.wd-keys .white + .white { border-left: none; }
+.wd-keys .black { position: absolute; top: 0; width: 8%; height: 60%; background: #333; border: none;
+  border-radius: 0 0 3px 3px; padding: 0; }
+.wd-keys button[aria-pressed="true"] { background: #999; border-color: #999; color: #fff; }
+.wd-params { display: grid; grid-template-columns: auto 1fr 44px; gap: 8px 12px; align-items: center; }
+.wd-params input[type="range"] { width: 100%; margin: 0; accent-color: #333; }
+.wd-value { text-align: right; color: #888; }
 `;
 
 // C から 1 オクターブ: [ラベル, 黒鍵か, PC キー]
@@ -69,10 +78,27 @@ function button(text: string, onClick?: () => void): HTMLButtonElement {
   return b;
 }
 
-function row(label: string, ...children: Node[]): HTMLElement {
+function row(...children: Node[]): HTMLElement {
   const r = el('div', 'wd-row');
-  r.append(el('span', 'wd-label', label), ...children);
+  r.append(...children);
   return r;
+}
+
+function section(heading: string, ...children: Node[]): HTMLElement {
+  const s = el('div', 'wd-section');
+  s.append(el('div', 'wd-heading', heading), ...children);
+  return s;
+}
+
+/** radio / checkbox とそのラベル。 */
+function choice(type: 'radio' | 'checkbox', name: string, text: string, onChange: (checked: boolean) => void): [HTMLLabelElement, HTMLInputElement] {
+  const input = el('input');
+  input.type = type;
+  input.name = name;
+  input.addEventListener('change', () => onChange(input.checked));
+  const label = el('label');
+  label.append(input, document.createTextNode(text));
+  return [label, input];
 }
 
 export function mountWebDaw(opts: WebDawOptions): void {
@@ -116,11 +142,11 @@ export function mountWebDaw(opts: WebDawOptions): void {
   };
 
   // --- transport ---
-  const play = button('Play', () => setPlaying(!transport.state.isPlaying));
+  const play = button('▶ Play', () => setPlaying(!transport.state.isPlaying));
+  play.classList.add('wd-play');
   const setPlaying = (on: boolean): void => {
     transport.setPlaying?.(on);
-    play.textContent = on ? 'Stop' : 'Play';
-    play.setAttribute('aria-pressed', String(on));
+    play.textContent = on ? '■ Stop' : '▶ Play';
     if (on) startAudio();
     else stopAudio();
   };
@@ -142,37 +168,41 @@ export function mountWebDaw(opts: WebDawOptions): void {
   });
 
   // --- audio ---
-  const srcBeat = button('Beat');
-  const srcFile = button('File…');
-  const file = el('input', 'wd-file');
-  file.type = 'file';
-  file.accept = 'audio/*';
   const setSource = (toFile: boolean): void => {
     useFile = toFile;
-    srcBeat.setAttribute('aria-pressed', String(!toFile));
-    srcFile.setAttribute('aria-pressed', String(toFile));
+    srcBeatInput.checked = !toFile;
+    srcFileInput.checked = toFile;
     connectMain();
     if (transport.state.isPlaying) {
       stopAudio();
       startAudio();
     }
   };
-  srcBeat.addEventListener('click', () => setSource(false));
-  srcFile.addEventListener('click', () => (fileBuffer ? setSource(true) : file.click()));
+  const file = el('input', 'wd-file');
+  file.type = 'file';
+  file.accept = 'audio/*';
+  const filename = el('span', 'wd-filename', 'no file');
+  const chooseFile = button('Choose…', () => file.click());
+  const [srcBeat, srcBeatInput] = choice('radio', 'wd-source', 'Beat (built-in)', () => setSource(false));
+  const [srcFile, srcFileInput] = choice('radio', 'wd-source', 'File', (checked) => {
+    if (!checked) return;
+    if (fileBuffer) setSource(true);
+    else file.click();
+  });
   file.addEventListener('change', async () => {
     const f = file.files?.[0];
-    if (!f) return;
+    if (!f) {
+      setSource(useFile);
+      return;
+    }
     fileBuffer = await graph.ctx.decodeAudioData(await f.arrayBuffer());
-    srcFile.textContent = f.name.length > 14 ? `${f.name.slice(0, 13)}…` : f.name;
+    filename.textContent = f.name;
+    filename.title = f.name;
     setSource(true);
   });
-  const sound = button('Sound', () => setSound(!graph.monitor));
-  const setSound = (on: boolean): void => {
-    graph.setMonitor(on);
-    sound.setAttribute('aria-pressed', String(on));
-  };
+  const [sound, soundInput] = choice('checkbox', 'wd-sound', 'Sound out', (on) => graph.setMonitor(on));
   setSource(false);
-  setSound(false);
+  soundInput.checked = false;
 
   // --- MIDI ---
   const keys = el('div', 'wd-keys');
@@ -189,10 +219,14 @@ export function mountWebDaw(opts: WebDawOptions): void {
     midi.pushNote?.(1, note, 0);
     keyButtons.get(note)?.setAttribute('aria-pressed', 'false');
   };
+  const whites = KEYS.filter(([, black]) => !black).length;
+  let whiteIndex = 0;
   KEYS.forEach(([label, black], i) => {
     const note = BASE_NOTE + i;
-    const b = button(label);
-    if (black) b.classList.add('black');
+    const b = button(black ? '' : label);
+    b.classList.add(black ? 'black' : 'white');
+    if (black) b.style.left = `calc(${(whiteIndex / whites) * 100}% - 4%)`;
+    else whiteIndex++;
     b.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       graph.resume();
@@ -218,7 +252,7 @@ export function mountWebDaw(opts: WebDawOptions): void {
   });
 
   // --- params ---
-  const paramRows: HTMLElement[] = [];
+  const paramGrid = el('div', 'wd-params');
   const syncers: Array<() => void> = [];
   for (const param of Object.values(params)) {
     const slider = el('input');
@@ -252,17 +286,19 @@ export function mountWebDaw(opts: WebDawOptions): void {
       value.textContent = param.step !== undefined && Number.isInteger(param.step) ? String(Math.round(v)) : v.toFixed(2);
       if (!dragging) slider.value = String(v);
     });
-    paramRows.push(row(param.title, slider, value));
+    paramGrid.append(el('span', undefined, param.title), slider, value);
   }
 
   // --- 組み立て ---
   const panel = el('div', 'wd wd-panel');
   panel.setAttribute('data-testid', 'web-daw');
+  const bpmLabel = el('label');
+  bpmLabel.append(document.createTextNode('BPM'), bpm);
   panel.append(
-    row('transport', play, rewind, bpm, el('span', undefined, 'bpm')),
-    row('audio', srcBeat, srcFile, sound, file),
-    row('midi', keys),
-    ...paramRows,
+    section('Transport', row(play, rewind, bpmLabel)),
+    section('Audio', row(srcBeat, srcFile, chooseFile, filename, file), row(sound)),
+    section('MIDI', keys),
+    section('Params', paramGrid),
   );
   panel.addEventListener('pointerdown', () => graph.resume());
 
