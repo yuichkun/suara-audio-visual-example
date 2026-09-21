@@ -4,6 +4,7 @@ import { createGlslRenderer } from './kit/glsl/renderer';
 import type { Scene } from './kit/glsl/scenes';
 import { createAppFrame } from './app-frame';
 import { createSignals } from './kit/signals';
+import { mountWebDaw } from './kit/web-daw';
 import { params } from './params';
 import { SCENE } from './scenes';
 import { tuning } from './tuning';
@@ -14,13 +15,15 @@ async function main(): Promise<void> {
   const canvas = document.getElementById('stage');
   if (!(canvas instanceof HTMLCanvasElement)) throw new Error('#stage canvas required');
 
-  // --- DAW からの入力 (web では SDK が仮想化する) ---
+  // --- DAW からの入力 ---
   const transport = useTransport();
   const midi = useMidi();
   await midi.whenReady();
   const graph = await createAudioGraph({ dsp: { url: dspUrl, processorName: 'suara-dsp' } });
   const signals = createSignals({ transport, midi, graph, params, motionEase: tuning.motion });
   const appFrame = createAppFrame(tuning);
+  // ブラウザで開いた時だけ、右下に簡易 DAW シミュレーターが出る (VST では何もしない)
+  mountWebDaw({ transport, midi, graph, params, playhead: signals.playhead });
 
   // --- 描画 ---
   const renderer = createGlslRenderer(canvas, uniforms, {

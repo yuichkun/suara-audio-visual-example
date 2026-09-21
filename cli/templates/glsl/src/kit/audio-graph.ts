@@ -1,12 +1,15 @@
 // DAW の音を受けて解析用の AnalyserNode を出す audio graph。
 //
-//   main bus      → [DSP worklet] → monitor gain → destination   (= effect としての passthrough)
-//                          └→ main analyser
-//   sidechain bus → sidechain analyser                           (= 解析だけ、音は出さない)
+//   main bus      → inputs.main      → [DSP worklet] → monitor gain → destination   (= effect としての passthrough)
+//                                             └→ main analyser
+//   sidechain bus → inputs.sidechain → sidechain analyser                           (= 解析だけ、音は出さない)
 //
-// ⚠️ web runtime では出力を default で mute する。SDK の web 用仮想入力は test tone なので、
-//   素通しするとページを開いただけで音が鳴る。鳴らすのは setMonitor(true) された時だけ。
-//   VST runtime は effect plugin なので常に素通し (mute すると DAW のトラックが無音になる)。
+// VST runtime では DAW のバスが inputs に繋がる。web runtime では DAW が無いので何も繋がず、
+// web-daw (簡易 DAW シミュレーター) が inputs に音を流す。
+//
+// ⚠️ web runtime では出力を default で mute する (ページを開いただけで音を鳴らさない)。
+//   鳴らすのは setMonitor(true) された時だけ。VST runtime は effect plugin なので常に素通し
+//   (mute すると DAW のトラックが無音になる)。
 
 import { createDawInput, runtime, type Bus } from '@suara/sdk';
 
@@ -20,11 +23,13 @@ export interface AudioGraph {
   readonly ctx: AudioContext;
   readonly main: AnalyserNode;
   readonly sidechain: AnalyserNode;
+  /** 各バスの入口。VST では DAW が繋がっている。web では自分で音を繋ぐ (web-daw が使う)。 */
+  readonly inputs: { readonly main: AudioNode; readonly sidechain: AudioNode };
   /** web runtime のみ有効: スピーカーに出すか (VST では常に true)。 */
   readonly monitor: boolean;
   setMonitor(on: boolean): void;
-  /** 入力を取り直す (web runtime で configureWebInput した後に呼ぶ)。 */
-  reloadInputs(): Promise<void>;
+  /** ブラウザの autoplay 制限で止まっている AudioContext を起こす (ユーザー操作の中で呼ぶ)。 */
+  resume(): void;
 }
 
 function createAnalyser(ctx: AudioContext, fftSize: number): AnalyserNode {
@@ -60,50 +65,29 @@ export async function createAudioGraph(opts: AudioGraphOptions = {}): Promise<Au
   processed.connect(monitorGain);
   processed.connect(main);
 
-  const sources = new Map<Bus, { node: MediaStreamAudioSourceNode; stream: MediaStream }>();
+  const sidechainIn = ctx.createGain();
+  sidechainIn.connect(sidechain);
 
-  async function attach(bus: Bus): Promise<void> {
-    const prev = sources.get(bus);
-    if (prev) {
-      prev.node.disconnect();
-      if (runtime.isWeb) for (const t of prev.stream.getTracks()) t.stop();
-      sources.delete(bus);
-    }
-    const stream = await createDawInput({ bus });
-    const node = ctx.createMediaStreamSource(stream);
-    node.connect(bus === 'main' ? mainIn : sidechain);
-    sources.set(bus, { node, stream });
-  }
-
-  await attach('main');
-  try {
-    await attach('sidechain');
-  } catch (e) {
-    // sidechain が取れなくても絵は出す (suara.json に aux bus が無い等)。値は 0 のまま。
-    console.warn('[audio-graph] sidechain input unavailable:', e);
-  }
-
-  void ctx.resume();
-  if (runtime.isWeb) resumeOnGesture();
-
-  // ブラウザの autoplay 制限: 操作前に作った AudioContext は suspended のまま。
-  // 最初の操作で resume し、SDK 側の仮想入力 (別 context) も取り直して起こす。
-  function resumeOnGesture(): void {
-    const onGesture = (): void => {
-      window.removeEventListener('pointerdown', onGesture);
-      window.removeEventListener('keydown', onGesture);
-      if (ctx.state === 'running') return; // autoplay が許可されていた
-      void ctx.resume();
-      void graph.reloadInputs();
+  if (runtime.isVst) {
+    const attach = async (bus: Bus, to: AudioNode): Promise<void> => {
+      const stream = await createDawInput({ bus });
+      ctx.createMediaStreamSource(stream).connect(to);
     };
-    window.addEventListener('pointerdown', onGesture);
-    window.addEventListener('keydown', onGesture);
+    await attach('main', mainIn);
+    try {
+      await attach('sidechain', sidechainIn);
+    } catch (e) {
+      // sidechain が取れなくても絵は出す (suara.json に aux bus が無い等)。値は 0 のまま。
+      console.warn('[audio-graph] sidechain input unavailable:', e);
+    }
   }
+  void ctx.resume();
 
-  const graph: AudioGraph = {
+  return {
     ctx,
     main,
     sidechain,
+    inputs: { main: mainIn, sidechain: sidechainIn },
     get monitor() {
       return monitor;
     },
@@ -112,10 +96,8 @@ export async function createAudioGraph(opts: AudioGraphOptions = {}): Promise<Au
       monitor = on;
       monitorGain.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.02);
     },
-    async reloadInputs() {
-      await attach('main');
-      await attach('sidechain').catch(() => undefined);
+    resume() {
+      if (ctx.state !== 'running') void ctx.resume();
     },
   };
-  return graph;
 }
