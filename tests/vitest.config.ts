@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
 
-const sdkDir = fileURLToPath(new URL('./src/sdk', import.meta.url));
+// 土台 (kit / sdk) の正は CLI の template。unit test はそこを直接テストする
+const sdkDir = fileURLToPath(new URL('../cli/templates/glsl/src/sdk', import.meta.url));
 
 export default defineConfig({
   resolve: {

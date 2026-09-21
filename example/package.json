@@ -1,0 +1,23 @@
+{
+  "name": "suara-visual",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "prod:web": "vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.worklet.json",
+    "build:dev": "suara build dev",
+    "build:prod": "suara build prod",
+    "register:dev": "suara register dev",
+    "register:prod": "suara register prod",
+    "unregister:dev": "suara unregister dev",
+    "unregister:prod": "suara unregister prod"
+  },
+  "devDependencies": {
+    "@types/audioworklet": "^0.0.100",
+    "@types/node": "26.6.2",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.2"
+  }
+}

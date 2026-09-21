@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { SHARED_PATHS } from '../../cli/scripts/shared.ts';
 
 const root = join(fileURLToPath(import.meta.url), '../../..');
+const template = join(root, 'cli/templates/glsl');
 const node = process.execPath;
 
 function runCreate(args: string[]) {
@@ -37,38 +39,20 @@ describe('Feature: scaffold CLI', () => {
 
   it('suara.json に name / vendor / 新しい uuid が入る', () => {
     const manifest = JSON.parse(readFileSync(join(out, 'suara.json'), 'utf8'));
-    const demo = JSON.parse(readFileSync(join(root, 'suara.json'), 'utf8'));
     expect(manifest.name).toBe('ProbeVis');
     expect(manifest.vendor).toBe('Yogo "Test"');
     expect(manifest.processorUuid).toMatch(/^[A-F0-9]{32}$/);
     expect(manifest.controllerUuid).toMatch(/^[A-F0-9]{32}$/);
     expect(manifest.processorUuid).not.toBe(manifest.controllerUuid);
-    expect(manifest.processorUuid).not.toBe(demo.processorUuid);
+    expect(JSON.parse(readFileSync(join(out, 'package.json'), 'utf8')).name).toBe('probe-vis');
   });
 
-  it('template 固有のファイルと共有の土台が両方入る', () => {
-    for (const path of [
-      'src/main.ts',
-      'src/params.ts',
-      'src/kit/signals/index.ts',
-      'src/sdk/midi.ts',
-      'src/worklets/dsp-worklet.ts',
-      'vite.config.ts',
-      'package.json',
-    ]) {
-      expect(existsSync(join(out, path)), path).toBe(true);
-    }
-    const pkg = JSON.parse(readFileSync(join(out, 'package.json'), 'utf8'));
-    expect(pkg.name).toBe('probe-vis');
-  });
-
-  it('placeholder が残っていない / shader や test が混ざっていない', () => {
+  it('template の中身がそのまま入り、placeholder は残らない', () => {
+    const rel = (base: string) => walk(base).map((f) => f.slice(base.length)).sort();
+    expect(rel(out)).toEqual(rel(template));
     for (const file of walk(out)) {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(/__[A-Z_]+__/);
     }
-    expect(walk(join(out, 'src/shaders')).filter((f) => f.endsWith('.frag'))).toEqual([]);
-    expect(existsSync(join(out, 'tests'))).toBe(false);
-    expect(existsSync(join(out, 'src/harness.ts'))).toBe(false);
   });
 
   it('scaffold した project がそのまま typecheck を通る', () => {
@@ -89,5 +73,13 @@ describe('Feature: scaffold CLI', () => {
   it('PascalCase でない name / 存在しない renderer は弾く', () => {
     expect(runCreate(['probe-vis', '--out', join(dir, 'x')]).status).not.toBe(0);
     expect(runCreate(['Other', '--renderer', 'wgsl', '--out', join(dir, 'y')]).status).not.toBe(0);
+  });
+});
+
+describe('Feature: example は template と同じ土台の上にある', () => {
+  it.each(SHARED_PATHS)('%s が template と同一 (ズレたら npm run sync:example)', (path) => {
+    expect(existsSync(join(root, 'example', path)), path).toBe(true);
+    const r = spawnSync('diff', ['-r', join(template, path), join(root, 'example', path)], { encoding: 'utf8' });
+    expect(r.stdout + r.stderr).toBe('');
   });
 });

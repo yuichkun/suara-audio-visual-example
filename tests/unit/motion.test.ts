@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createMotion } from '../../src/kit/signals/motion';
+import { createMotion } from '../../cli/templates/glsl/src/kit/signals/motion';
 
 const DT = 1 / 60;
 

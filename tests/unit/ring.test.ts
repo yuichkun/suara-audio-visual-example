@@ -5,7 +5,7 @@ import {
   SLOT_CAPACITY,
   drainMidi,
   writeMidiEvent,
-} from '../../src/sdk/ring';
+} from '../../cli/templates/glsl/src/sdk/ring';
 
 describe('Feature: MIDI ring roundtrip', () => {
   it('given write note-on when drain then pitch/vel return', () => {

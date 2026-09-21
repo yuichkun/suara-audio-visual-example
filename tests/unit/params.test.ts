@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { defineParams, readParams } from '../../src/kit/signals/params';
+import { defineParams, readParams } from '../../cli/templates/glsl/src/kit/signals/params';
 
 // useParam は id ごとに 1 回だけ呼ぶ前提なので、テストごとに id を変える
 const manifest = (base: number) => [

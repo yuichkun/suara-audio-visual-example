@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildConstantDecls, buildFragmentSource, type UniformSpec } from '../../src/kit/glsl/renderer';
-import { sceneForValue, scenesFromGlob } from '../../src/kit/glsl/scenes';
-import { paramUniformName } from '../../src/kit/glsl/standard-uniforms';
+import { buildConstantDecls, buildFragmentSource, type UniformSpec } from '../../cli/templates/glsl/src/kit/glsl/renderer';
+import { sceneForValue, scenesFromGlob } from '../../cli/templates/glsl/src/kit/glsl/scenes';
+import { paramUniformName } from '../../cli/templates/glsl/src/kit/glsl/standard-uniforms';
 
 describe('Feature: uniform 表 → GLSL 宣言', () => {
   it('given 表 then 型ごとの宣言が生成され、user source の行番号が 1 から始まる', () => {

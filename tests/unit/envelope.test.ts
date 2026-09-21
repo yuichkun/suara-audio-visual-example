@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createOnsetDetector, follow, smoothTo } from '../../src/kit/signals/envelope';
+import { createOnsetDetector, follow, smoothTo } from '../../cli/templates/glsl/src/kit/signals/envelope';
 
 /** 同じ秒数を fps 違いで進めた時の結果を返す。 */
 function run(fps: number, seconds: number, step: (dt: number) => number): number {

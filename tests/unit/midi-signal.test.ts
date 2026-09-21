@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { MidiNoteEvent } from '@suara/sdk';
-import { createMidiSignal } from '../../src/kit/signals/midi';
+import { createMidiSignal } from '../../cli/templates/glsl/src/kit/signals/midi';
 
 function fakeMidi() {
   const activeNotes = new Set<number>();

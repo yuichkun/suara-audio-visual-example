@@ -1,0 +1,18 @@
+{
+  "name": "create-suara-av",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Scaffold a Suara audio-visual plugin project",
+  "bin": {
+    "create-suara-av": "./create.ts"
+  },
+  "scripts": {
+    "create": "node --experimental-strip-types create.ts",
+    "sync:example": "node --experimental-strip-types scripts/sync-example.ts",
+    "vendor:sdk": "node --experimental-strip-types scripts/vendor-sdk.ts"
+  },
+  "dependencies": {
+    "gunshi": "^0.26.3"
+  }
+}

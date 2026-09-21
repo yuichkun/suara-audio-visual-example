@@ -4,7 +4,7 @@ import {
   bandAverage,
   createAudioAnalysis,
   type AnalyserLike,
-} from '../../src/kit/signals/audio';
+} from '../../cli/templates/glsl/src/kit/signals/audio';
 
 function fakeAnalyser(): AnalyserLike & { wave: Float32Array; bins: Uint8Array } {
   const wave = new Float32Array(2048);

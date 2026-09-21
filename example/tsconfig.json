@@ -1,17 +1,26 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "noEmit": true,
-    "types": ["vite/client", "node"],
+    "types": [
+      "vite/client"
+    ],
     "paths": {
-      "@suara/sdk": ["./src/sdk/index.ts"],
-      "@suara/sdk/*": ["./src/sdk/*"]
+      "@suara/sdk": [
+        "./src/sdk/index.ts"
+      ],
+      "@suara/sdk/*": [
+        "./src/sdk/*"
+      ]
     },
-
     "strict": true,
     "noImplicitOverride": true,
     "noImplicitReturns": true,
@@ -30,6 +39,10 @@
     "resolveJsonModule": true,
     "skipLibCheck": true
   },
-  "include": ["src", "tests", "scripts", "cli", "vite.config.ts", "vitest.config.ts", "playwright.config.ts"],
-  "exclude": ["src/worklets", "templates"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/worklets"
+  ]
 }

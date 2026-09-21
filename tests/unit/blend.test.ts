@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createBlendWeights } from '../../src/kit/signals/blend';
+import { createBlendWeights } from '../../cli/templates/glsl/src/kit/signals/blend';
 
 const DT = 1 / 60;
 const sum = (w: Float32Array) => w.reduce((a, b) => a + b, 0);

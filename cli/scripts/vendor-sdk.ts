@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Suara 本体の SDK (poc_v2/sdk/src) を src/sdk/ に vendoring し直す。
+ * Suara 本体の SDK (poc_v2/sdk/src) を template の src/sdk/ に vendoring し直す。
+ * (そのあと `npm run sync:example` で example にも写す)
  * この repo は Vue を使わないので、copy した後に Vue (`reactive`) と ARA / helper を外し、
  * この repo の厳格な tsc (noUncheckedIndexedAccess) を通すための最小の書き換えを当てる。
  *
@@ -14,9 +15,9 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const srcDir = process.env['SUARA_SDK_SRC'] ?? join(root, '..', 'suara', 'poc_v2', 'sdk', 'src');
-const dstDir = join(root, 'src', 'sdk');
+const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const srcDir = process.env['SUARA_SDK_SRC'] ?? join(repo, '..', 'suara', 'poc_v2', 'sdk', 'src');
+const dstDir = join(repo, 'cli', 'templates', 'glsl', 'src', 'sdk');
 
 if (!existsSync(srcDir)) {
   console.error(`SDK source not found: ${srcDir}`);

@@ -6,7 +6,7 @@ import {
   phase,
   pulse,
   type PlayheadSample,
-} from '../../src/kit/signals/transport';
+} from '../../cli/templates/glsl/src/kit/signals/transport';
 
 const at = (seconds: number, over: Partial<PlayheadSample> = {}): PlayheadSample => ({
   seconds,
