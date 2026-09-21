@@ -8,15 +8,16 @@ Suara の audio visual plugin project を作る CLI。
 repo の root で:
 
 ```bash
-npm run create -- MyVJ
+npm run create -- ../MyVJ
 ```
 
-`./MyVJ` に project ができる。名前は PascalCase の英数字。
+指定した場所 (パスはコマンドを打った場所から見たもの) に project ができる。
+パスの最後の部分 (`MyVJ`) がそのまま plugin の名前になるので、PascalCase の英数字にする。
+この repo の中ではなく、外 (`../` など) に作るのがおすすめ。
 
 | option | |
 |---|---|
 | `--vendor <name>` | plugin の vendor 名 (default: `Suara`) |
-| `--out <dir>` | 出力先 (default: `./<name>`) |
 
 あとは、できた project の中で:
 

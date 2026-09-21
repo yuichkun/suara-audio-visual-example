@@ -27,10 +27,10 @@ DAW (Cubase など) の中で動かす手順と、作品の中身の説明は [e
 ## 自分の project を作る
 
 ```bash
-npm run create -- MyVJ
+npm run create -- ../MyVJ
 ```
 
-`./MyVJ` に project ができる。使い方は [cli/README.md](cli/README.md)。
+この repo の隣 (`../MyVJ`) に project ができる。使い方は [cli/README.md](cli/README.md)。
 
 ## もっと知る
 

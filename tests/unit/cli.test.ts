@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -10,10 +10,16 @@ const root = join(fileURLToPath(import.meta.url), '../../..');
 const template = join(root, 'cli/templates/glsl');
 const node = process.execPath;
 
-function runCreate(args: string[]) {
+/** npm run 経由をまねる時は initCwd (= npm が INIT_CWD に入れる、コマンドを打った場所) を渡す。 */
+function runCreate(args: string[], opts: { cwd?: string; initCwd?: string } = {}) {
+  // テスト自体が npm run で動いていると INIT_CWD を継承してしまうので、一度外す
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env['INIT_CWD'];
+  if (opts.initCwd) env['INIT_CWD'] = opts.initCwd;
   return spawnSync(node, ['--experimental-strip-types', join(root, 'cli/create.ts'), ...args], {
     encoding: 'utf8',
-    cwd: root,
+    cwd: opts.cwd ?? root,
+    env,
   });
 }
 
@@ -29,7 +35,7 @@ describe('Feature: scaffold CLI', () => {
   beforeAll(() => {
     dir = mkdtempSync(join(tmpdir(), 'suara-av-'));
     out = join(dir, 'ProbeVis');
-    const r = runCreate(['ProbeVis', '--vendor', 'Yogo "Test"', '--out', out]);
+    const r = runCreate([out, '--vendor', 'Yogo "Test"']);
     expect(r.status, r.stderr + r.stdout).toBe(0);
   });
 
@@ -64,15 +70,37 @@ describe('Feature: scaffold CLI', () => {
     }
   }, 60_000);
 
-  it('既にある dir には上書きしない', () => {
-    const r = runCreate(['ProbeVis', '--out', out]);
-    expect(r.status).not.toBe(0);
-    expect(r.stderr + r.stdout).toMatch(/output exists/);
+  it('npm run create -- ../X は、コマンドを打った場所から見た ../X に作る', () => {
+    const typedIn = join(dir, 'repo');
+    mkdirSync(typedIn);
+    // npm は cwd を package の root (= この repo) に変えて、打った場所を INIT_CWD に入れる
+    const r = runCreate(['../FromNpm'], { cwd: root, initCwd: typedIn });
+    expect(r.status, r.stderr + r.stdout).toBe(0);
+    expect(existsSync(join(dir, 'FromNpm/suara.json'))).toBe(true);
+    expect(JSON.parse(readFileSync(join(dir, 'FromNpm/suara.json'), 'utf8')).name).toBe('FromNpm');
+    expect(r.stdout).toContain('cd ../FromNpm');
   });
 
-  it('PascalCase でない name / 存在しない renderer は弾く', () => {
-    expect(runCreate(['probe-vis', '--out', join(dir, 'x')]).status).not.toBe(0);
-    expect(runCreate(['Other', '--renderer', 'wgsl', '--out', join(dir, 'y')]).status).not.toBe(0);
+  it('直接実行した時は cwd から解決する', () => {
+    const r = runCreate(['Direct'], { cwd: dir });
+    expect(r.status, r.stderr + r.stdout).toBe(0);
+    expect(existsSync(join(dir, 'Direct/suara.json'))).toBe(true);
+  });
+
+  it('既にある dir には上書きしない', () => {
+    const r = runCreate([out]);
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/already exists/);
+  });
+
+  it('入力ミスは stack trace ではなく 1 行のエラーで返す', () => {
+    for (const args of [[join(dir, 'probe-vis')], [join(dir, 'Other'), '--renderer', 'wgsl'], []]) {
+      const r = runCreate(args);
+      expect(r.status, args.join(' ')).not.toBe(0);
+      expect(r.stderr).toMatch(/^error: /m);
+      expect(r.stderr).not.toMatch(/\n\s+at /);
+    }
+    expect(runCreate([join(dir, 'probe-vis')]).stderr).toMatch(/PascalCase.*probe-vis/);
   });
 });
 
